@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 import * as d3 from 'd3';
-import { Example2D, shuffle } from "./dataset";
 import { HeatMap } from "./heatmap";
 import { AppendingLineChart } from "./linechart";
 import * as nn from "./nn";
@@ -78,7 +77,7 @@ class Player {
       if (localTimerIndex < this.timerIndex) {
         return true;  // Done.
       }
-      oneStep();
+      step(1);
       return false;  // Not done.
     }, 0);
   }
@@ -100,9 +99,6 @@ let colorScale = d3.scale.linear<string, number>()
   .domain([-1, 0, 1])
   .range(["#f59322", "#e8eaeb", "#0877bd"])
   .clamp(true);
-let iter = 0;
-let trainData: Example2D[] = [];
-let testData: Example2D[] = [];
 let network: nn.Node[][] = null;
 let player = new Player();
 let lineChart = new AppendingLineChart(d3.select("#linechart"),
@@ -110,6 +106,7 @@ let lineChart = new AppendingLineChart(d3.select("#linechart"),
 
 function makeGUI() {
   d3.select("#reset-button").on("click", () => {
+    state.currentFrame = 0;
     reset();
     d3.select("#play-pause-button");
   });
@@ -125,11 +122,17 @@ function makeGUI() {
 
   d3.select("#next-step-button").on("click", () => {
     player.pause();
-    oneStep();
+    step(1);
   });
 
+  d3.select("#prev-step-button").on("click", () => {
+    player.pause();
+    step(-1);
+  });
+
+
   d3.select("#load-experiment-button").on("click", () => {
-    generateData();
+    loadData();
     parametersChanged = true;
   });
 
@@ -142,7 +145,7 @@ function makeGUI() {
     state.experiment = newExperiment;
     dataThumbnails.classed("selected", false);
     d3.select(this).classed("selected", true);
-    generateData();
+    loadData();
     parametersChanged = true;
     reset();
   });
@@ -163,7 +166,7 @@ function makeGUI() {
 
   let problem = d3.select("#problem").on("change", function () {
     state.problem = problems[this.value];
-    generateData();
+    loadData();
     parametersChanged = true;
     reset();
   });
@@ -188,17 +191,8 @@ function makeGUI() {
       .getBoundingClientRect().width;
     if (newWidth !== mainWidth) {
       mainWidth = newWidth;
-      drawNetwork(network);
-      updateUI(true);
     }
   });
-
-  // Hide the text below the visualization depending on the URL.
-  if (state.hideText) {
-    d3.select("#article-text").style("display", "none");
-    d3.select("div.more").style("display", "none");
-    d3.select("header").style("display", "none");
-  }
 }
 
 function updateWeightsUI(network: nn.Node[][], container) {
@@ -211,7 +205,7 @@ function updateWeightsUI(network: nn.Node[][], container) {
         let link = node.inputLinks[j];
         container.select(`#link${link.source.id}-${link.dest.id}`)
           .style({
-            "stroke-dashoffset": -iter / 3,
+            "stroke-dashoffset": -state.currentFrame / 3,
             "stroke-width": linkWidthScale(Math.abs(link.weight)),
             "stroke": colorScale(link.weight)
           })
@@ -235,37 +229,36 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
     });
 
   // Draw the main rectangle.
-  nodeGroup.append("rect")
+  let rect = nodeGroup.append("rect")
     .attr({
       x: 0,
       y: 0,
       width: dimension,
       height: dimension,
+    })
+    .on("mouseenter", function () {
+      selectedNodeId = nodeId;
+      rect.classed("hovered", true);
+      nodeGroup.classed("hovered", true);
+    })
+    .on("mouseleave", function () {
+      selectedNodeId = null;
+      rect.classed("hovered", false);
+      nodeGroup.classed("hovered", false);
+    })
+    .on("click", function () {
+      state.nodeState[nodeId] = !state.nodeState[nodeId];
+      parametersChanged = true;
+      reset()
     });
-  let activeOrNotClass = state[nodeId] ? "active" : "inactive";
-  let label = nodeId
+
+  let activeOrNotClass = state.nodeState[nodeId] ? "active" : "inactive";
   let text = nodeGroup.append("text").attr({
     class: "main-label",
     x: dimension / 2,
     y: dimension / 2, "text-anchor": "end"
   });
-  text.append("tspan").text(label)
-    .on("mouseenter", function () {
-      selectedNodeId = nodeId;
-      text.classed("hovered", true);
-      nodeGroup.classed("hovered", true);
-    })
-    .on("mouseleave", function () {
-      selectedNodeId = null;
-      text.classed("hovered", false);
-      nodeGroup.classed("hovered", false);
-    })
-    .on("click", function () {
-      state[nodeId] = !state[nodeId];
-      parametersChanged = true;
-      reset();
-    });
-
+  text.append("tspan").text(nodeId)
   nodeGroup.classed(activeOrNotClass, true);
 }
 
@@ -528,7 +521,6 @@ function updateUI(firstStep = false) {
     return n.toFixed(3);
   }
 
-  // Update loss and iteration number.
   let frame = state.nullFrame
   if (state.frames) {
     frame = state.frames[state.currentFrame]
@@ -539,12 +531,14 @@ function updateUI(firstStep = false) {
   lineChart.addDataPoint([frame.lossTrain, frame.lossTest]);
 }
 
-function oneStep(): void {
-  if (state.currentFrame < 99) {
-    state.currentFrame++;
-  }
-  else {
+function step(count: number): void {
+  state.currentFrame += count;
+  if (state.currentFrame >= 99) {
+    state.currentFrame = 99
     player.pause();
+  }
+  else if (state.currentFrame < 0) {
+    state.currentFrame = 0
   }
   updateUI();
 }
@@ -564,7 +558,7 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
   return weights;
 }
 
-function reset(onStartup = false) {
+function reset() {
   lineChart.reset();
   state.serialize();
   player.pause();
@@ -574,16 +568,14 @@ function reset(onStartup = false) {
   d3.select("#num-layers").text(state.numHiddenLayers);
 
   // Make a simple network.
-  iter = 0;
-  state.currentFrame = 0;
-  let numInputs = state.inputIds.length;
-  let shape = [numInputs].concat(state.networkShape).concat([1]);
+  let shape = [state.inputIds.length].concat(state.networkShape).concat([1]);
   network = nn.buildNetwork(shape, state.inputIds, state.initZero);
+  console.log(network)
   drawNetwork(network);
   updateUI(true);
 };
 
-function generateData(firstTime = false) {
+function loadData() {
   fetch('./test_out.json')
     .then(response => response.json())
     .then(data => {
@@ -598,19 +590,11 @@ function generateData(firstTime = false) {
       state.frames = data;
     })
     .catch(error => console.log(error));
-
-  let data = state.dataset(500, state.noise / 100);
-  // Shuffle the data in-place.
-  shuffle(data);
-  // Split into train and test data.
-  let splitIndex = Math.floor(data.length * state.percTrainData / 100);
-  trainData = data.slice(0, splitIndex);
-  testData = data.slice(splitIndex);
 }
 
 let parametersChanged = false;
 
 
 makeGUI();
-generateData(true);
-reset(true);
+loadData();
+reset();

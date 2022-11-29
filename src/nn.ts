@@ -44,13 +44,10 @@ export class Node {
   numAccumulatedDers = 0;
 
   /**
-   * Creates a new node with the provided id and activation function.
+   * Creates a new node with the provided id
    */
-  constructor(id: string, initZero?: boolean) {
+  constructor(id: string) {
     this.id = id;
-    if (initZero) {
-      this.bias = 0;
-    }
   }
 
   /** Recomputes the node's output and returns it. */
@@ -74,18 +71,6 @@ export interface ErrorFunction {
   der: (output: number, target: number) => number;
 }
 
-/** A node's activation function and its derivative. */
-export interface ActivationFunction {
-  output: (input: number) => number;
-  der: (input: number) => number;
-}
-
-/** Function that computes a penalty cost for a given weight in the network. */
-export interface RegularizationFunction {
-  output: (weight: number) => number;
-  der: (weight: number) => number;
-}
-
 /** Built-in error functions */
 export class Errors {
   public static SQUARE: ErrorFunction = {
@@ -106,44 +91,6 @@ export class Errors {
     return (e2x - 1) / (e2x + 1);
   }
 };
-
-/** Built-in activation functions */
-export class Activations {
-  public static TANH: ActivationFunction = {
-    output: x => (Math as any).tanh(x),
-    der: x => {
-      let output = Activations.TANH.output(x);
-      return 1 - output * output;
-    }
-  };
-  public static RELU: ActivationFunction = {
-    output: x => Math.max(0, x),
-    der: x => x <= 0 ? 0 : 1
-  };
-  public static SIGMOID: ActivationFunction = {
-    output: x => 1 / (1 + Math.exp(-x)),
-    der: x => {
-      let output = Activations.SIGMOID.output(x);
-      return output * (1 - output);
-    }
-  };
-  public static LINEAR: ActivationFunction = {
-    output: x => x,
-    der: x => 1
-  };
-}
-
-/** Build-in regularization functions */
-export class RegularizationFunction {
-  public static L1: RegularizationFunction = {
-    output: w => Math.abs(w),
-    der: w => w < 0 ? -1 : (w > 0 ? 1 : 0)
-  };
-  public static L2: RegularizationFunction = {
-    output: w => 0.5 * w * w,
-    der: w => w
-  };
-}
 
 /**
  * A link in a neural network. Each link has a weight and a source and
@@ -169,8 +116,6 @@ export class Link {
    *
    * @param source The source node.
    * @param dest The destination node.
-   * @param regularization The regularization function that computes the
-   *     penalty for this weight. If null, there will be no regularization.
    */
   constructor(source: Node, dest: Node, initZero?: boolean) {
     this.id = source.id + "-" + dest.id;
@@ -188,11 +133,6 @@ export class Link {
  * @param networkShape The shape of the network. E.g. [1, 2, 3, 1] means
  *   the network will have one input node, 2 nodes in first hidden layer,
  *   3 nodes in second hidden layer and 1 output node.
- * @param activation The activation function of every hidden node.
- * @param outputActivation The activation function for the output nodes.
- * @param regularization The regularization function that computes a penalty
- *     for a given weight (parameter) in the network. If null, there will be
- *     no regularization.
  * @param inputIds List of ids for the input nodes.
  */
 export function buildNetwork(
@@ -216,7 +156,7 @@ export function buildNetwork(
       } else {
         id++;
       }
-      let node = new Node(nodeId, initZero);
+      let node = new Node(nodeId);
       currentLayer.push(node);
       if (layerIdx >= 1) {
         // Add links from nodes in the previous layer to this node.
@@ -323,8 +263,7 @@ export function backProp(network: Node[][], target: number,
 /**
  * Updates the weights of the network
  */
-export function updateWeights(network: Node[][], learningRate: number,
-  regularizationRate: number) {
+export function updateWeights(network: Node[][]) {
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
     let currentLayer = network[layerIdx];
     for (let i = 0; i < currentLayer.length; i++) {

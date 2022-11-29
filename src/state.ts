@@ -14,22 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 import * as dataset from "./dataset";
-import * as nn from "./nn";
-
-/** A map between names and activation functions. */
-export let activations: { [key: string]: nn.ActivationFunction } = {
-  "relu": nn.Activations.RELU,
-  "tanh": nn.Activations.TANH,
-  "sigmoid": nn.Activations.SIGMOID,
-  "linear": nn.Activations.LINEAR
-};
-
-/** A map between names and regularization functions. */
-export let regularizations: { [key: string]: nn.RegularizationFunction } = {
-  "none": null,
-  "L1": nn.RegularizationFunction.L1,
-  "L2": nn.RegularizationFunction.L2
-};
 
 /** A map between dataset names and functions that generate classification data. */
 export let experiments: { [key: string]: string } = {
@@ -81,12 +65,9 @@ export class State {
     { name: "d_embed", type: Type.NUMBER },
     { name: "currentFrame", type: Type.NUMBER },
 
-    { name: "activation", type: Type.OBJECT, keyMap: activations },
-    { name: "regularization", type: Type.OBJECT, keyMap: regularizations },
     { name: "batchSize", type: Type.NUMBER },
     { name: "experiment", type: Type.OBJECT, keyMap: experiments },
     { name: "learningRate", type: Type.NUMBER },
-    { name: "regularizationRate", type: Type.NUMBER },
     { name: "noise", type: Type.NUMBER },
     { name: "networkShape", type: Type.ARRAY_NUMBER },
     { name: "seed", type: Type.STRING },
@@ -105,7 +86,6 @@ export class State {
     { name: "tutorial", type: Type.STRING },
     { name: "problem", type: Type.OBJECT, keyMap: problems },
     { name: "initZero", type: Type.BOOLEAN },
-    { name: "hideText", type: Type.BOOLEAN }
   ];
 
   [key: string]: any;
@@ -119,22 +99,18 @@ export class State {
     heads: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0)))
   }
   token_count = 5;
-  tokens: boolean[] = new Array(5).fill(false);
+  nodeState: { [id: string]: boolean } = {};
   inputIds: string[] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
   experiment: string = "Temp";
 
   learningRate = 0.03;
-  regularizationRate = 0;
   showTestData = false;
   noise = 0;
   batchSize = 10;
   tutorial: string = null;
   percTrainData = 50;
-  activation = nn.Activations.TANH;
-  regularization: nn.RegularizationFunction = null;
   problem = Problem.CLASSIFICATION;
   initZero = false;
-  hideText = false;
   collectStats = false;
   numHiddenLayers = 1;
   hiddenLayerControls: any[] = [];
