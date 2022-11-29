@@ -118,6 +118,11 @@ export class State {
     lossTrain: 1,
     heads: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0)))
   }
+  token_count = 5;
+  tokens: boolean[] = new Array(5).fill(false);
+  inputIds: string[] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+  experiment: string = "Temp";
+
   learningRate = 0.03;
   regularizationRate = 0;
   showTestData = false;
@@ -134,10 +139,7 @@ export class State {
   numHiddenLayers = 1;
   hiddenLayerControls: any[] = [];
   networkShape: number[] = [4, 2];
-  token_count = 5;
-  tokens: boolean[] = new Array(5).fill(false);
   dataset: dataset.DataGenerator = dataset.classifyCircleData;
-  experiment: string = "Temp";
   seed: string;
 
   /**

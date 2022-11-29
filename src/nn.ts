@@ -42,15 +42,12 @@ export class Node {
    * since the last update.
    */
   numAccumulatedDers = 0;
-  /** Activation function that takes total input and returns node's output */
-  activation: ActivationFunction;
 
   /**
    * Creates a new node with the provided id and activation function.
    */
-  constructor(id: string, activation: ActivationFunction, initZero?: boolean) {
+  constructor(id: string, initZero?: boolean) {
     this.id = id;
-    this.activation = activation;
     if (initZero) {
       this.bias = 0;
     }
@@ -64,7 +61,7 @@ export class Node {
       let link = this.inputLinks[j];
       this.totalInput += link.weight * link.source.output;
     }
-    this.output = this.activation.output(this.totalInput);
+    this.output = this.totalInput;
     return this.output;
   }
 }
@@ -93,13 +90,13 @@ export interface RegularizationFunction {
 export class Errors {
   public static SQUARE: ErrorFunction = {
     error: (output: number, target: number) =>
-               0.5 * Math.pow(output - target, 2),
+      0.5 * Math.pow(output - target, 2),
     der: (output: number, target: number) => output - target
   };
 }
 
 /** Polyfill for TANH */
-(Math as any).tanh = (Math as any).tanh || function(x) {
+(Math as any).tanh = (Math as any).tanh || function (x) {
   if (x === Infinity) {
     return 1;
   } else if (x === -Infinity) {
@@ -166,7 +163,6 @@ export class Link {
   accErrorDer = 0;
   /** Number of accumulated derivatives since the last update. */
   numAccumulatedDers = 0;
-  regularization: RegularizationFunction;
 
   /**
    * Constructs a link in the neural network initialized with random weight.
@@ -176,12 +172,10 @@ export class Link {
    * @param regularization The regularization function that computes the
    *     penalty for this weight. If null, there will be no regularization.
    */
-  constructor(source: Node, dest: Node,
-      regularization: RegularizationFunction, initZero?: boolean) {
+  constructor(source: Node, dest: Node, initZero?: boolean) {
     this.id = source.id + "-" + dest.id;
     this.source = source;
     this.dest = dest;
-    this.regularization = regularization;
     if (initZero) {
       this.weight = 0;
     }
@@ -202,10 +196,9 @@ export class Link {
  * @param inputIds List of ids for the input nodes.
  */
 export function buildNetwork(
-    networkShape: number[], activation: ActivationFunction,
-    outputActivation: ActivationFunction,
-    regularization: RegularizationFunction,
-    inputIds: string[], initZero?: boolean): Node[][] {
+  networkShape: number[],
+  inputIds: string[],
+  initZero?: boolean): Node[][] {
   let numLayers = networkShape.length;
   let id = 1;
   /** List of layers, with each layer being a list of nodes. */
@@ -223,14 +216,13 @@ export function buildNetwork(
       } else {
         id++;
       }
-      let node = new Node(nodeId,
-          isOutputLayer ? outputActivation : activation, initZero);
+      let node = new Node(nodeId, initZero);
       currentLayer.push(node);
       if (layerIdx >= 1) {
         // Add links from nodes in the previous layer to this node.
         for (let j = 0; j < network[layerIdx - 1].length; j++) {
           let prevNode = network[layerIdx - 1][j];
-          let link = new Link(prevNode, node, regularization, initZero);
+          let link = new Link(prevNode, node, initZero);
           prevNode.outputs.push(link);
           node.inputLinks.push(link);
         }
@@ -254,7 +246,7 @@ export function forwardProp(network: Node[][], inputs: number[]): number {
   let inputLayer = network[0];
   if (inputs.length !== inputLayer.length) {
     throw new Error("The number of inputs must match the number of nodes in" +
-        " the input layer");
+      " the input layer");
   }
   // Update the input layer.
   for (let i = 0; i < inputLayer.length; i++) {
@@ -280,7 +272,7 @@ export function forwardProp(network: Node[][], inputs: number[]): number {
  * in the network.
  */
 export function backProp(network: Node[][], target: number,
-    errorFunc: ErrorFunction): void {
+  errorFunc: ErrorFunction): void {
   // The output node is a special case. We use the user-defined error
   // function for the derivative.
   let outputNode = network[network.length - 1][0];
@@ -294,7 +286,7 @@ export function backProp(network: Node[][], target: number,
     // 2) each of its input weights.
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      node.inputDer = node.outputDer * node.activation.der(node.totalInput);
+      node.inputDer = node.outputDer
       node.accInputDer += node.inputDer;
       node.numAccumulatedDers++;
     }
@@ -329,46 +321,19 @@ export function backProp(network: Node[][], target: number,
 }
 
 /**
- * Updates the weights of the network using the previously accumulated error
- * derivatives.
+ * Updates the weights of the network
  */
 export function updateWeights(network: Node[][], learningRate: number,
-    regularizationRate: number) {
+  regularizationRate: number) {
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
     let currentLayer = network[layerIdx];
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      // Update the node's bias.
-      if (node.numAccumulatedDers > 0) {
-        node.bias -= learningRate * node.accInputDer / node.numAccumulatedDers;
-        node.accInputDer = 0;
-        node.numAccumulatedDers = 0;
-      }
       // Update the weights coming into this node.
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
         if (link.isDead) {
           continue;
-        }
-        let regulDer = link.regularization ?
-            link.regularization.der(link.weight) : 0;
-        if (link.numAccumulatedDers > 0) {
-          // Update the weight based on dE/dw.
-          link.weight = link.weight -
-              (learningRate / link.numAccumulatedDers) * link.accErrorDer;
-          // Further update the weight based on regularization.
-          let newLinkWeight = link.weight -
-              (learningRate * regularizationRate) * regulDer;
-          if (link.regularization === RegularizationFunction.L1 &&
-              link.weight * newLinkWeight < 0) {
-            // The weight crossed 0 due to the regularization term. Set it to 0.
-            link.weight = 0;
-            link.isDead = true;
-          } else {
-            link.weight = newLinkWeight;
-          }
-          link.accErrorDer = 0;
-          link.numAccumulatedDers = 0;
         }
       }
     }
@@ -377,10 +342,10 @@ export function updateWeights(network: Node[][], learningRate: number,
 
 /** Iterates over every node in the network/ */
 export function forEachNode(network: Node[][], ignoreInputs: boolean,
-    accessor: (node: Node) => any) {
+  accessor: (node: Node) => any) {
   for (let layerIdx = ignoreInputs ? 1 : 0;
-      layerIdx < network.length;
-      layerIdx++) {
+    layerIdx < network.length;
+    layerIdx++) {
     let currentLayer = network[layerIdx];
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];

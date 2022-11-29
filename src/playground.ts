@@ -19,31 +19,22 @@ import { HeatMap } from "./heatmap";
 import { AppendingLineChart } from "./linechart";
 import * as nn from "./nn";
 import {
-  activations, experiments, getKeyFromValue,
-  Problem, problems, regularizations, State
+  experiments, getKeyFromValue, problems, State
 } from "./state";
 
 let mainWidth;
 
 const TOKEN_SIZE = 20;
 const RECT_SIZE = 80;
-const BIAS_SIZE = 5;
-const DENSITY = 100;
 
 enum HoverType {
   BIAS, WEIGHT
 }
 
-interface InputFeature {
-  label?: string;
-}
-
-let INPUTS: { [name: string]: InputFeature } = {
-  "x": { label: "0" },
-  "y": { label: "1" },
-};
-
-// let INPUTS = ["0", "1", "2", "3", "4"]
+// TODO Add an interface to support more complicated tokens
+// interface InputFeature {
+//   label?: string;
+// }
 
 class Player {
   private timerIndex = 0;
@@ -170,37 +161,6 @@ function makeGUI() {
   batchSize.property("value", state.batchSize);
   d3.select("label[for='batchSize'] .value").text(state.batchSize);
 
-  let activationDropdown = d3.select("#activations").on("change", function () {
-    state.activation = activations[this.value];
-    parametersChanged = true;
-    reset();
-  });
-  activationDropdown.property("value",
-    getKeyFromValue(activations, state.activation));
-
-  let learningRate = d3.select("#learningRate").on("change", function () {
-    state.learningRate = +this.value;
-    state.serialize();
-    parametersChanged = true;
-  });
-  learningRate.property("value", state.learningRate);
-
-  let regularDropdown = d3.select("#regularizations").on("change",
-    function () {
-      state.regularization = regularizations[this.value];
-      parametersChanged = true;
-      reset();
-    });
-  regularDropdown.property("value",
-    getKeyFromValue(regularizations, state.regularization));
-
-  let regularRate = d3.select("#regularRate").on("change", function () {
-    state.regularizationRate = +this.value;
-    parametersChanged = true;
-    reset();
-  });
-  regularRate.property("value", state.regularizationRate);
-
   let problem = d3.select("#problem").on("change", function () {
     state.problem = problems[this.value];
     generateData();
@@ -239,12 +199,6 @@ function makeGUI() {
     d3.select("div.more").style("display", "none");
     d3.select("header").style("display", "none");
   }
-}
-
-function updateBiasesUI(network: nn.Node[][]) {
-  nn.forEachNode(network, true, node => {
-    d3.select(`rect#bias-${node.id}`).style("fill", colorScale(node.bias));
-  });
 }
 
 function updateWeightsUI(network: nn.Node[][], container) {
@@ -335,19 +289,6 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       width: RECT_SIZE,
       height: RECT_SIZE,
     });
-  // Draw the node's bias.
-  nodeGroup.append("rect")
-    .attr({
-      id: `bias-${nodeId}`,
-      x: -BIAS_SIZE - 2,
-      y: RECT_SIZE - BIAS_SIZE + 3,
-      width: BIAS_SIZE,
-      height: BIAS_SIZE,
-    }).on("mouseenter", function () {
-      updateHoverCard(HoverType.BIAS, node, d3.mouse(container.node()));
-    }).on("mouseleave", function () {
-      updateHoverCard(null);
-    });
 
   // Draw the node's canvas.
   let div = d3.select("#network").insert("div", ":first-child")
@@ -372,8 +313,6 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       nodeGroup.classed("hovered", false);
       // heatMap.updateBackground(boundary[nn.getOutputNode(network).id]);
     });
-  // let nodeHeatMap = new HeatMap(RECT_SIZE, DENSITY / 10, xDomain,
-  //   xDomain, div, { noSvg: true });
   let nodeHeatMap = new HeatMap(RECT_SIZE, 10, xDomain,
     xDomain, div, { noSvg: true });
   div.datum({ heatmap: nodeHeatMap, id: nodeId });
@@ -409,13 +348,10 @@ function drawNetwork(network: nn.Node[][]): void {
   let nodeIndexScale = (nodeIndex: number, dim: number) => nodeIndex * (dim + 25);
 
 
-  // Draw the input layer separately.
+  // Draw the input layer.
   let cx = TOKEN_SIZE / 2 + 50;
-  // let nodeIds = INPUTS;
-  let nodeIds = Object.keys(INPUTS);
-  // let nodeIds = ["0", "1"]
-  let maxY = nodeIndexScale(nodeIds.length, TOKEN_SIZE);
-  nodeIds.forEach((nodeId, i) => {
+  let maxY = nodeIndexScale(state.inputIds.length, TOKEN_SIZE);
+  state.inputIds.forEach((nodeId, i) => {
     let cy = nodeIndexScale(i, TOKEN_SIZE) + TOKEN_SIZE / 2;
     node2coord[nodeId] = { cx, cy };
     drawInputNode(cx, cy, nodeId, container);
@@ -520,7 +456,7 @@ function drawLink(
   let source = node2coord[input.source.id];
   let dest = node2coord[input.dest.id];
   let dimension = RECT_SIZE;
-  if (Object.keys(INPUTS).includes(input.source.id)) {
+  if (state.inputIds.includes(input.source.id)) {
     dimension = TOKEN_SIZE;
   }
   let datum = {
@@ -555,38 +491,16 @@ function drawLink(
 }
 
 
-function updateAttentionPattern(network: nn.Node[][]) {
-  let xScale = d3.scale.linear().domain([0, DENSITY - 1]).range(xDomain);
-  let yScale = d3.scale.linear().domain([DENSITY - 1, 0]).range(xDomain);
-
-  let i = 0, j = 0;
-}
-
-/**
- * Given a neural network, it asks the network for the output (prediction)
- * of every node in the network using inputs sampled on a square grid.
- * It returns a map where each key is the node ID and the value is a square
- * matrix of the outputs of the network for each input in the grid respectively.
- */
-
-function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
-  let loss = 0;
-  for (let i = 0; i < dataPoints.length; i++) {
-    let dataPoint = dataPoints[i];
-    // let input = constructInput(dataPoint.x, dataPoint.y);
-    let input = [dataPoint.x, dataPoint.y];
-    let output = nn.forwardProp(network, input);
-    loss += nn.Errors.SQUARE.error(output, dataPoint.label);
-  }
-  return loss / dataPoints.length;
-}
+// function updateAttentionPattern(network: nn.Node[][]) {
+//   let xScale = d3.scale.linear().domain([0, DENSITY - 1]).range(xDomain);
+//   let yScale = d3.scale.linear().domain([DENSITY - 1, 0]).range(xDomain);
+//   let i = 0, j = 0;
+// }
 
 function updateUI(firstStep = false) {
   console.log(state)
   // Update the links visually.
   updateWeightsUI(network, d3.select("g.core"));
-  // Update the bias values visually.
-  updateBiasesUI(network);
   let selectedId = selectedNodeId != null ?
     selectedNodeId : nn.getOutputNode(network).id;
 
@@ -632,15 +546,6 @@ function oneStep(): void {
   else {
     player.pause();
   }
-  trainData.forEach((point, i) => {
-    let input: number[] = [point.x, point.y];
-    nn.forwardProp(network, input);
-    nn.backProp(network, point.label, nn.Errors.SQUARE);
-    if ((i + 1) % state.batchSize === 0) {
-      nn.updateWeights(network, state.learningRate, state.regularizationRate);
-    }
-  });
-  // Compute the loss.
   updateUI();
 }
 
@@ -671,14 +576,9 @@ function reset(onStartup = false) {
   // Make a simple network.
   iter = 0;
   state.currentFrame = 0;
-  // let numInputs = constructInput(0, 0).length;
-  let numInputs = 2;
-  let inputIds = ["x", "y"];
+  let numInputs = state.inputIds.length;
   let shape = [numInputs].concat(state.networkShape).concat([1]);
-  let outputActivation = (state.problem === Problem.REGRESSION) ?
-    nn.Activations.LINEAR : nn.Activations.TANH;
-  network = nn.buildNetwork(shape, state.activation, outputActivation,
-    state.regularization, inputIds, state.initZero);
+  network = nn.buildNetwork(shape, state.inputIds, state.initZero);
   drawNetwork(network);
   updateUI(true);
 };
