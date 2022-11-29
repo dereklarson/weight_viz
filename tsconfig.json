@@ -1,10 +1,14 @@
 {
   "compilerOptions": {
+    "lib": [
+      "ES2016",
+      "DOM"
+    ],
     "module": "commonjs",
     "removeComments": true,
     "preserveConstEnums": true
   },
   "exclude": [
-    "node_modules" 
+    "node_modules"
   ]
 }
