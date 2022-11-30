@@ -106,7 +106,7 @@ let lineChart = new AppendingLineChart(d3.select("#linechart"),
 
 function makeGUI() {
   d3.select("#reset-button").on("click", () => {
-    state.currentFrame = 0;
+    state.currentFrameIdx = 0;
     reset();
     d3.select("#play-pause-button");
   });
@@ -205,7 +205,7 @@ function updateWeightsUI(network: nn.Node[][], container) {
         let link = node.inputLinks[j];
         container.select(`#link${link.source.id}-${link.dest.id}`)
           .style({
-            "stroke-dashoffset": -state.currentFrame / 3,
+            "stroke-dashoffset": -state.currentFrameIdx / 3,
             "stroke-width": linkWidthScale(Math.abs(link.weight)),
             "stroke": colorScale(link.weight)
           })
@@ -240,11 +240,15 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
       selectedNodeId = nodeId;
       rect.classed("hovered", true);
       nodeGroup.classed("hovered", true);
+      nn.updateWeights(network, state.currentFrame["heads"], parseInt(nodeId))
+      updateUI();
     })
     .on("mouseleave", function () {
       selectedNodeId = null;
       rect.classed("hovered", false);
       nodeGroup.classed("hovered", false);
+      nn.updateWeights(network, state.currentFrame["heads"], null)
+      updateUI();
     })
     .on("click", function () {
       state.nodeState[nodeId] = !state.nodeState[nodeId];
@@ -298,7 +302,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       selectedNodeId = nodeId;
       div.classed("hovered", true);
       nodeGroup.classed("hovered", true);
-      heatMap.updateBackground(state.frames[state.currentFrame]["heads"][parseInt(nodeId) % 4]);
+      heatMap.updateBackground(state.currentFrame["heads"][parseInt(nodeId) % 4]);
     })
     .on("mouseleave", function () {
       selectedNodeId = null;
@@ -410,8 +414,6 @@ function updateHoverCard(type: HoverType, nodeOrLink?: nn.Node | nn.Link,
       if (this.value != null && this.value !== "") {
         if (type === HoverType.WEIGHT) {
           (nodeOrLink as nn.Link).weight = +this.value;
-        } else {
-          (nodeOrLink as nn.Node).bias = +this.value;
         }
         updateUI();
       }
@@ -423,10 +425,8 @@ function updateHoverCard(type: HoverType, nodeOrLink?: nn.Node | nn.Link,
     });
     (input.node() as HTMLInputElement).focus();
   });
-  let value = (type === HoverType.WEIGHT) ?
-    (nodeOrLink as nn.Link).weight :
-    (nodeOrLink as nn.Node).bias;
-  let name = (type === HoverType.WEIGHT) ? "Weight" : "Bias";
+  let value = (nodeOrLink as nn.Link).weight
+  let name = "Weight";
   hovercard.style({
     "left": `${coordinates[0] + 20}px`,
     "top": `${coordinates[1]}px`,
@@ -491,7 +491,6 @@ function drawLink(
 // }
 
 function updateUI(firstStep = false) {
-  console.log(state)
   // Update the links visually.
   updateWeightsUI(network, d3.select("g.core"));
   let selectedId = selectedNodeId != null ?
@@ -499,12 +498,7 @@ function updateUI(firstStep = false) {
 
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
-      try {
-        data.heatmap.updateBackground(state.frames[state.currentFrame]["heads"][parseInt(data.id) % 4])
-      }
-      catch {
-        data.heatmap.updateBackground(state.nullFrame["heads"][0])
-      }
+      data.heatmap.updateBackground(state.currentFrame["heads"][parseInt(data.id) % 4])
     });
 
 
@@ -521,10 +515,7 @@ function updateUI(firstStep = false) {
     return n.toFixed(3);
   }
 
-  let frame = state.nullFrame
-  if (state.frames) {
-    frame = state.frames[state.currentFrame]
-  }
+  let frame = state.currentFrame
   d3.select("#loss-train").text(humanReadable(frame.lossTrain));
   d3.select("#loss-test").text(humanReadable(frame.lossTest));
   d3.select("#epoch-number").text(addCommas(zeroPad(frame.epoch)));
@@ -532,14 +523,16 @@ function updateUI(firstStep = false) {
 }
 
 function step(count: number): void {
-  state.currentFrame += count;
-  if (state.currentFrame >= 99) {
-    state.currentFrame = 99
+  state.currentFrameIdx += count;
+  if (state.currentFrameIdx >= 99) {
+    state.currentFrameIdx = 99
     player.pause();
   }
-  else if (state.currentFrame < 0) {
-    state.currentFrame = 0
+  else if (state.currentFrameIdx < 0) {
+    state.currentFrameIdx = 0
   }
+  state.currentFrame = state.frames[state.currentFrameIdx]
+  nn.updateWeights(network, state.currentFrame["heads"], null)
   updateUI();
 }
 
@@ -563,14 +556,13 @@ function reset() {
   state.serialize();
   player.pause();
 
-  let suffix = state.numHiddenLayers !== 1 ? "s" : "";
-  d3.select("#layers-label").text("Hidden layer" + suffix);
-  d3.select("#num-layers").text(state.numHiddenLayers);
+  let suffix = state.numTransformerBlocks !== 1 ? "s" : "";
+  d3.select("#layers-label").text("Transformer block" + suffix);
+  d3.select("#num-layers").text(state.numTransformerBlocks);
 
   // Make a simple network.
   let shape = [state.inputIds.length].concat(state.networkShape).concat([1]);
-  network = nn.buildNetwork(shape, state.inputIds, state.initZero);
-  console.log(network)
+  network = nn.buildNetwork(shape, state.inputIds);
   drawNetwork(network);
   updateUI(true);
 };
@@ -579,7 +571,7 @@ function loadData() {
   fetch('./test_out.json')
     .then(response => response.json())
     .then(data => {
-      console.log(data)
+      console.log("Experiment params", data)
       state.dEmbed = data['d_embed'];
     })
     .catch(error => console.log(error));
@@ -587,6 +579,7 @@ function loadData() {
   fetch('./test_data.json')
     .then(response => response.json())
     .then(data => {
+      console.log("Loaded frames", data)
       state.frames = data;
     })
     .catch(error => console.log(error));

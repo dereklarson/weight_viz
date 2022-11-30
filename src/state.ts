@@ -13,9 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-import * as dataset from "./dataset";
-
-/** A map between dataset names and functions that generate classification data. */
+/** A map between experiment names and specifications. */
 export let experiments: { [key: string]: string } = {
   "temp": "temp"
 };
@@ -63,36 +61,22 @@ export class State {
 
   private static PROPS: Property[] = [
     { name: "d_embed", type: Type.NUMBER },
-    { name: "currentFrame", type: Type.NUMBER },
+    { name: "currentFrameIdx", type: Type.NUMBER },
+    { name: "experiment", type: Type.OBJECT, keyMap: experiments },
+    { name: "networkShape", type: Type.ARRAY_NUMBER },
+    { name: "numTransformerBlocks", type: Type.NUMBER },
+    { name: "hoverToken", type: Type.NUMBER },
 
     { name: "batchSize", type: Type.NUMBER },
-    { name: "experiment", type: Type.OBJECT, keyMap: experiments },
-    { name: "learningRate", type: Type.NUMBER },
     { name: "noise", type: Type.NUMBER },
-    { name: "networkShape", type: Type.ARRAY_NUMBER },
     { name: "seed", type: Type.STRING },
-    { name: "showTestData", type: Type.BOOLEAN },
-    { name: "percTrainData", type: Type.NUMBER },
-    { name: "x", type: Type.BOOLEAN },
-    { name: "y", type: Type.BOOLEAN },
-    { name: "xTimesY", type: Type.BOOLEAN },
-    { name: "xSquared", type: Type.BOOLEAN },
-    { name: "ySquared", type: Type.BOOLEAN },
-    { name: "cosX", type: Type.BOOLEAN },
-    { name: "sinX", type: Type.BOOLEAN },
-    { name: "cosY", type: Type.BOOLEAN },
-    { name: "sinY", type: Type.BOOLEAN },
-    { name: "collectStats", type: Type.BOOLEAN },
-    { name: "tutorial", type: Type.STRING },
     { name: "problem", type: Type.OBJECT, keyMap: problems },
-    { name: "initZero", type: Type.BOOLEAN },
   ];
 
   [key: string]: any;
   dEmbed = 2;
-  sample: number[][] = [[1, 0, -1], [0, -1, 0], [-1, 1, 1]]
-  currentFrame: number = 0
-  nullFrame = {
+  currentFrameIdx: number = 0
+  currentFrame = {
     epoch: 0,
     lossTest: 1,
     lossTrain: 1,
@@ -102,8 +86,9 @@ export class State {
   nodeState: { [id: string]: boolean } = {};
   inputIds: string[] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
   experiment: string = "Temp";
+  numTransformerBlocks = 1;
+  hoverToken = 0;
 
-  learningRate = 0.03;
   showTestData = false;
   noise = 0;
   batchSize = 10;
@@ -112,10 +97,8 @@ export class State {
   problem = Problem.CLASSIFICATION;
   initZero = false;
   collectStats = false;
-  numHiddenLayers = 1;
   hiddenLayerControls: any[] = [];
-  networkShape: number[] = [4, 2];
-  dataset: dataset.DataGenerator = dataset.classifyCircleData;
+  networkShape: number[] = [4];
   seed: string;
 
   /**
@@ -181,7 +164,7 @@ export class State {
     });
 
     // Deserialize state properties that correspond to hiding UI controls.
-    state.numHiddenLayers = state.networkShape.length;
+    state.numTransformerBlocks = state.networkShape.length;
     if (state.seed == null) {
       state.seed = Math.random().toFixed(5);
     }
