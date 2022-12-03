@@ -26,7 +26,7 @@ limitations under the License.
   <link rel="stylesheet" href="bundle.css" type="text/css">
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet"
     type="text/css">
-  <script src="lib.js"></script>
+  <!-- <script src="lib.js"></script> -->
 </head>
 
 <body>
@@ -63,12 +63,11 @@ limitations under the License.
         <span class="label">Epoch</span>
         <span class="value" id="epoch-number"></span>
       </div>
-      <div class="control ui-problem">
-        <label for="problem">Problem type</label>
+      <div class="control ui-experiment">
+        <label for="experiment">Experiment</label>
         <div class="select">
-          <select id="problem">
-            <option value="classification">Classification</option>
-            <option value="regression">Regression</option>
+          <select id="experiment">
+            <option value="sample">Sample</option>
           </select>
         </div>
       </div>
@@ -81,14 +80,13 @@ limitations under the License.
     <!--  Data Column-->
     <div class="column data">
       <h4>
-        <span>Experiment</span>
+        <span>Options</span>
       </h4>
       <div class="ui-dataset">
-        <p>Choose an Experiment</p>
+        <p>Change Visualization Settings</p>
         <div class="dataset-list">
           <div class="dataset" title="Circle">
             <span>Temp</span>
-            <!-- <canvas class="data-thumbnail" data-dataset="circle"></canvas> -->
           </div>
         </div>
       </div>
@@ -130,8 +128,7 @@ limitations under the License.
     <!-- Hidden Layers Column -->
     <div class="column hidden-layers">
       <h4>
-        <span id="num-layers"></span>
-        <span id="layers-label"></span>
+        <span id="layers-label">Transformer Blocks</span>
       </h4>
       <div class="bracket"></div>
     </div>
@@ -140,12 +137,12 @@ limitations under the License.
     <div class="column output">
       <h4>Output</h4>
       <div class="metrics">
-        <div class="output-stats ui-percTrainData">
-          <span>Test loss</span>
+        <div class="output-stats test">
+          <span>Test loss (log)</span>
           <div class="value" id="loss-test"></div>
         </div>
         <div class="output-stats train">
-          <span>Training loss</span>
+          <span>Train loss (log) </span>
           <div class="value" id="loss-train"></div>
         </div>
         <div id="linechart"></div>

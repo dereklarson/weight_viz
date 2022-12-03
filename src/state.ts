@@ -13,93 +13,52 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-/** A map between experiment names and specifications. */
-export let experiments: { [key: string]: string } = {
-  "temp": "temp"
-};
-
-export function getKeyFromValue(obj: any, value: any): string {
-  for (let key in obj) {
-    if (obj[key] === value) {
-      return key;
-    }
-  }
-  return undefined;
-}
-
 /**
  * The data type of a state variable. Used for determining the
  * (de)serialization method.
  */
 export enum Type {
-  STRING,
+  BOOLEAN,
   NUMBER,
+  STRING,
   ARRAY_NUMBER,
   ARRAY_STRING,
-  BOOLEAN,
-  OBJECT
 }
-
-export enum Problem {
-  CLASSIFICATION,
-  REGRESSION
-}
-
-export let problems = {
-  "classification": Problem.CLASSIFICATION,
-  "regression": Problem.REGRESSION
-};
 
 export interface Property {
   name: string;
   type: Type;
-  keyMap?: { [key: string]: any };
 };
 
 // Add the GUI state.
 export class State {
 
   private static PROPS: Property[] = [
-    { name: "d_embed", type: Type.NUMBER },
+    { name: "experiment", type: Type.STRING },
+    { name: "currentTag", type: Type.STRING },
     { name: "currentFrameIdx", type: Type.NUMBER },
-    { name: "experiment", type: Type.OBJECT, keyMap: experiments },
+    { name: "seed", type: Type.NUMBER },
+
     { name: "networkShape", type: Type.ARRAY_NUMBER },
     { name: "numTransformerBlocks", type: Type.NUMBER },
-    { name: "hoverToken", type: Type.NUMBER },
 
     { name: "batchSize", type: Type.NUMBER },
-    { name: "noise", type: Type.NUMBER },
-    { name: "seed", type: Type.STRING },
-    { name: "problem", type: Type.OBJECT, keyMap: problems },
   ];
 
   [key: string]: any;
-  dEmbed = 2;
-  currentFrameIdx: number = 0
-  currentFrame = {
-    epoch: 0,
-    lossTest: 1,
-    lossTrain: 1,
-    heads: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0)))
-  }
-  token_count = 5;
+  experiment: string = "sample";
+  currentTag: string = "sample";
+  currentFrameIdx: number = 0;
   nodeState: { [id: string]: boolean } = {};
   inputIds: string[] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-  experiment: string = "Temp";
-  numTransformerBlocks = 1;
-  hoverToken = 0;
+  seed: number = 1;
 
-  showTestData = false;
-  noise = 0;
-  batchSize = 10;
-  tutorial: string = null;
-  percTrainData = 50;
-  problem = Problem.CLASSIFICATION;
-  initZero = false;
-  collectStats = false;
-  hiddenLayerControls: any[] = [];
+  // Useful for now, will convert later
   networkShape: number[] = [4];
-  seed: string;
+  numTransformerBlocks = 1;
+
+  // Remove once cleaned from usage
+  batchSize = 10;
 
   /**
    * Deserializes the state from the url hash.
@@ -121,17 +80,8 @@ export class State {
     }
 
     // Deserialize regular properties.
-    State.PROPS.forEach(({ name, type, keyMap }) => {
+    State.PROPS.forEach(({ name, type }) => {
       switch (type) {
-        case Type.OBJECT:
-          if (keyMap == null) {
-            throw Error("A key-value map must be provided for state " +
-              "variables of type Object");
-          }
-          if (hasKey(name) && map[name] in keyMap) {
-            state[name] = keyMap[map[name]];
-          }
-          break;
         case Type.NUMBER:
           if (hasKey(name)) {
             // The + operator is for converting a string to a number.
@@ -162,12 +112,6 @@ export class State {
           throw Error("Encountered an unknown type for a state variable");
       }
     });
-
-    // Deserialize state properties that correspond to hiding UI controls.
-    state.numTransformerBlocks = state.networkShape.length;
-    if (state.seed == null) {
-      state.seed = Math.random().toFixed(5);
-    }
     return state;
   }
 
@@ -177,14 +121,11 @@ export class State {
   serialize() {
     // Serialize regular properties.
     let props: string[] = [];
-    State.PROPS.forEach(({ name, type, keyMap }) => {
+    State.PROPS.forEach(({ name, type }) => {
       let value = this[name];
       // Don't serialize missing values.
       if (value == null) {
         return;
-      }
-      if (type === Type.OBJECT) {
-        value = getKeyFromValue(keyMap, value);
       } else if (type === Type.ARRAY_NUMBER ||
         type === Type.ARRAY_STRING) {
         value = value.join(",");

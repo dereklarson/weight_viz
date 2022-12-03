@@ -73,7 +73,6 @@ export class Link {
  */
 export function buildNetwork(networkShape: number[], inputIds: string[]): Node[][] {
   let numLayers = networkShape.length;
-  let id = 1;
   /** List of layers, with each layer being a list of nodes. */
   let network: Node[][] = [];
   for (let layerIdx = 0; layerIdx < numLayers; layerIdx++) {
@@ -83,11 +82,11 @@ export function buildNetwork(networkShape: number[], inputIds: string[]): Node[]
     network.push(currentLayer);
     let numNodes = networkShape[layerIdx];
     for (let i = 0; i < numNodes; i++) {
-      let nodeId = id.toString();
+      let nodeId = "";
       if (isInputLayer) {
         nodeId = inputIds[i];
       } else {
-        id++;
+        nodeId = `${layerIdx}_${i}`
       }
       let node = new Node(nodeId);
       currentLayer.push(node);

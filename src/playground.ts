@@ -17,13 +17,12 @@ import * as d3 from 'd3';
 import { HeatMap } from "./heatmap";
 import { AppendingLineChart } from "./linechart";
 import * as nn from "./nn";
-import {
-  experiments, getKeyFromValue, problems, State
-} from "./state";
+import { Player } from "./player";
+import { State } from "./state";
 
 let mainWidth;
 
-const TOKEN_SIZE = 20;
+const TOKEN_SIZE = 24;
 const RECT_SIZE = 80;
 
 enum HoverType {
@@ -35,56 +34,25 @@ enum HoverType {
 //   label?: string;
 // }
 
-class Player {
-  private timerIndex = 0;
-  private isPlaying = false;
-  private callback: (isPlaying: boolean) => void = null;
-
-  /** Plays/pauses the player. */
-  playOrPause() {
-    if (this.isPlaying) {
-      this.isPlaying = false;
-      this.pause();
-    } else {
-      this.isPlaying = true;
-      this.play();
-    }
-  }
-
-  onPlayPause(callback: (isPlaying: boolean) => void) {
-    this.callback = callback;
-  }
-
-  play() {
-    this.pause();
-    this.isPlaying = true;
-    if (this.callback) {
-      this.callback(this.isPlaying);
-    }
-    this.start(this.timerIndex);
-  }
-
-  pause() {
-    this.timerIndex++;
-    this.isPlaying = false;
-    if (this.callback) {
-      this.callback(this.isPlaying);
-    }
-  }
-
-  private start(localTimerIndex: number) {
-    d3.timer(() => {
-      if (localTimerIndex < this.timerIndex) {
-        return true;  // Done.
-      }
-      step(1);
-      return false;  // Not done.
-    }, 0);
-  }
-}
 
 let state = State.deserializeState();
 
+let experiments: string[] = [];
+let configs = { sample: { name: "Sample", tags: ["sample"] } }
+let currentConfig = {}
+let currentFrame = {
+  epoch: 0,
+  lossTest: 1,
+  lossTrain: 1,
+  blocks: [
+    {
+      attention: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0))),
+      output: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0))),
+      mlp: []
+    }
+  ]
+}
+let frames = [currentFrame];
 let selectedNodeId: string = null;
 // Plot the heatmap.
 let xDomain: [number, number] = [-6, 6];
@@ -130,47 +98,25 @@ function makeGUI() {
     step(-1);
   });
 
-
-  d3.select("#load-experiment-button").on("click", () => {
-    loadData();
-    parametersChanged = true;
-  });
-
-  let dataThumbnails = d3.selectAll("canvas[data-dataset]");
-  dataThumbnails.on("click", function () {
-    let newExperiment = experiments[this.dataset.dataset];
-    if (newExperiment === state.experiment) {
-      return; // No-op.
-    }
-    state.experiment = newExperiment;
-    dataThumbnails.classed("selected", false);
-    d3.select(this).classed("selected", true);
-    loadData();
-    parametersChanged = true;
-    reset();
-  });
-
-  let datasetKey = getKeyFromValue(experiments, state.experiment);
-  // Select the dataset according to the current state.
-  d3.select(`canvas[data-dataset=${datasetKey}]`)
-    .classed("selected", true);
+  // d3.select("#load-experiment-button").on("click", () => {
+  //   loadData();
+  // });
 
   let batchSize = d3.select("#batchSize").on("input", function () {
     state.batchSize = this.value;
     d3.select("label[for='batchSize'] .value").text(this.value);
-    parametersChanged = true;
     reset();
   });
   batchSize.property("value", state.batchSize);
   d3.select("label[for='batchSize'] .value").text(state.batchSize);
 
-  let problem = d3.select("#problem").on("change", function () {
-    state.problem = problems[this.value];
-    loadData();
-    parametersChanged = true;
+  let experiment = d3.select("#experiment").on("change", function () {
+    state.experiment = this.value;
+    state.currentTag = configs[state.experiment].tags[0];
+    loadData(state.currentTag);
     reset();
   });
-  problem.property("value", getKeyFromValue(problems, state.problem));
+  experiment.property("value", state.experiment);
 
   // Add scale to the gradient color map.
   let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);
@@ -226,6 +172,24 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
       "class": "node",
       "id": `node${nodeId}`,
       "transform": `translate(${x},${y})`
+    })
+    .on("mouseenter", function () {
+      selectedNodeId = nodeId;
+      rect.classed("hovered", true);
+      nodeGroup.classed("hovered", true);
+      nn.updateWeights(network, currentFrame.blocks[0].attention, parseInt(nodeId))
+      updateUI();
+    })
+    .on("mouseleave", function () {
+      selectedNodeId = null;
+      rect.classed("hovered", false);
+      nodeGroup.classed("hovered", false);
+      nn.updateWeights(network, currentFrame.blocks[0].attention, null)
+      updateUI();
+    })
+    .on("click", function () {
+      state.nodeState[nodeId] = !state.nodeState[nodeId];
+      reset()
     });
 
   // Draw the main rectangle.
@@ -236,39 +200,21 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
       width: dimension,
       height: dimension,
     })
-    .on("mouseenter", function () {
-      selectedNodeId = nodeId;
-      rect.classed("hovered", true);
-      nodeGroup.classed("hovered", true);
-      nn.updateWeights(network, state.currentFrame["heads"], parseInt(nodeId))
-      updateUI();
-    })
-    .on("mouseleave", function () {
-      selectedNodeId = null;
-      rect.classed("hovered", false);
-      nodeGroup.classed("hovered", false);
-      nn.updateWeights(network, state.currentFrame["heads"], null)
-      updateUI();
-    })
-    .on("click", function () {
-      state.nodeState[nodeId] = !state.nodeState[nodeId];
-      parametersChanged = true;
-      reset()
-    });
 
-  let activeOrNotClass = state.nodeState[nodeId] ? "active" : "inactive";
   let text = nodeGroup.append("text").attr({
     class: "main-label",
     x: dimension / 2,
     y: dimension / 2, "text-anchor": "end"
   });
   text.append("tspan").text(nodeId)
+
+  let activeOrNotClass = state.nodeState[nodeId] ? "active" : "inactive";
   nodeGroup.classed(activeOrNotClass, true);
 }
 
 
 function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.Node) {
-  let x = cx - RECT_SIZE / 2;
+  let x = cx - RECT_SIZE;
   let y = cy - RECT_SIZE / 2;
 
   let nodeGroup = container.append("g")
@@ -283,12 +229,12 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
     .attr({
       x: 0,
       y: 0,
-      width: RECT_SIZE,
+      width: RECT_SIZE * 2,
       height: RECT_SIZE,
     });
 
   // Draw the node's canvas.
-  let div = d3.select("#network").insert("div", ":first-child")
+  let attn_div = d3.select("#network").insert("div", ":first-child")
     .attr({
       "id": `canvas-${nodeId}`,
       "class": "canvas"
@@ -300,19 +246,36 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
     })
     .on("mouseenter", function () {
       selectedNodeId = nodeId;
-      div.classed("hovered", true);
+      attn_div.classed("hovered", true);
       nodeGroup.classed("hovered", true);
-      heatMap.updateBackground(state.currentFrame["heads"][parseInt(nodeId) % 4]);
+      let headIdx: number = parseInt(nodeId.split("_")[1])
+      heatMap.updateBackground(currentFrame.blocks[0].attention[headIdx]);
     })
     .on("mouseleave", function () {
       selectedNodeId = null;
-      div.classed("hovered", false);
+      attn_div.classed("hovered", false);
       nodeGroup.classed("hovered", false);
       // heatMap.updateBackground(boundary[nn.getOutputNode(network).id]);
     });
-  let nodeHeatMap = new HeatMap(RECT_SIZE, 10, xDomain,
-    xDomain, div, { noSvg: true });
-  div.datum({ heatmap: nodeHeatMap, id: nodeId });
+  let attnHeatMap = new HeatMap(RECT_SIZE, 10, xDomain,
+    xDomain, attn_div, { noSvg: true });
+  attn_div.datum({ heatmap: attnHeatMap, id: nodeId });
+
+
+  let output_div = d3.select("#network").insert("div", ":first-child")
+    .attr({
+      "id": `canvas-${nodeId}-out`,
+      "class": "canvas"
+    })
+    .style({
+      position: "absolute",
+      left: `${x + RECT_SIZE + 3}px`,
+      top: `${y + 3}px`
+    })
+  let outputHeatMap = new HeatMap(RECT_SIZE, 10, xDomain,
+    xDomain, output_div, { noSvg: true });
+  output_div.datum({ heatmap: outputHeatMap, id: `out_${nodeId}` });
+
 
 }
 
@@ -448,7 +411,7 @@ function drawLink(
   let line = container.insert("path", ":first-child");
   let source = node2coord[input.source.id];
   let dest = node2coord[input.dest.id];
-  let dimension = RECT_SIZE;
+  let dimension = RECT_SIZE * 2;
   if (state.inputIds.includes(input.source.id)) {
     dimension = TOKEN_SIZE;
   }
@@ -458,7 +421,7 @@ function drawLink(
       x: source.cy
     },
     target: {
-      y: dest.cx - RECT_SIZE / 2,
+      y: dest.cx - RECT_SIZE,
       x: dest.cy + ((index - (length - 1) / 2) / length) * 12
     }
   };
@@ -483,14 +446,7 @@ function drawLink(
   return line;
 }
 
-
-// function updateAttentionPattern(network: nn.Node[][]) {
-//   let xScale = d3.scale.linear().domain([0, DENSITY - 1]).range(xDomain);
-//   let yScale = d3.scale.linear().domain([DENSITY - 1, 0]).range(xDomain);
-//   let i = 0, j = 0;
-// }
-
-function updateUI(firstStep = false) {
+function updateUI() {
   // Update the links visually.
   updateWeightsUI(network, d3.select("g.core"));
   let selectedId = selectedNodeId != null ?
@@ -498,7 +454,14 @@ function updateUI(firstStep = false) {
 
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
-      data.heatmap.updateBackground(state.currentFrame["heads"][parseInt(data.id) % 4])
+      if (data.id.startsWith("out_")) {
+        let headIdx: number = parseInt(data.id.slice(4).split("_")[1])
+        data.heatmap.updateBackground(currentFrame.blocks[0].output[headIdx])
+      }
+      else {
+        let headIdx: number = parseInt(data.id.split("_")[1])
+        data.heatmap.updateBackground(currentFrame.blocks[0].attention[headIdx])
+      }
     });
 
 
@@ -511,30 +474,30 @@ function updateUI(firstStep = false) {
     return s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
-  function humanReadable(n: number): string {
-    return n.toFixed(3);
+  function logHumanReadable(n: number): string {
+    return Math.log(n).toFixed(2);
   }
 
-  let frame = state.currentFrame
-  d3.select("#loss-train").text(humanReadable(frame.lossTrain));
-  d3.select("#loss-test").text(humanReadable(frame.lossTest));
-  d3.select("#epoch-number").text(addCommas(zeroPad(frame.epoch)));
-  lineChart.addDataPoint([frame.lossTrain, frame.lossTest]);
+  // d3.select("#layers-label").text("Transformer blocks");
+  d3.select("#loss-train").text(logHumanReadable(currentFrame.lossTrain));
+  d3.select("#loss-test").text(logHumanReadable(currentFrame.lossTest));
+  d3.select("#epoch-number").text(addCommas(zeroPad(currentFrame.epoch)));
 }
 
 function step(count: number): void {
   state.currentFrameIdx += count;
-  if (state.currentFrameIdx >= 99) {
-    state.currentFrameIdx = 99
+  if (state.currentFrameIdx >= frames.length) {
+    state.currentFrameIdx = frames.length - 1
     player.pause();
   }
   else if (state.currentFrameIdx < 0) {
     state.currentFrameIdx = 0
   }
-  state.currentFrame = state.frames[state.currentFrameIdx]
-  nn.updateWeights(network, state.currentFrame["heads"], null)
+  currentFrame = frames[state.currentFrameIdx]
+  nn.updateWeights(network, currentFrame.blocks[0].attention, null)
   updateUI();
 }
+player.onTick(step)
 
 export function getOutputWeights(network: nn.Node[][]): number[] {
   let weights: number[] = [];
@@ -555,39 +518,58 @@ function reset() {
   lineChart.reset();
   state.serialize();
   player.pause();
-
-  let suffix = state.numTransformerBlocks !== 1 ? "s" : "";
-  d3.select("#layers-label").text("Transformer block" + suffix);
-  d3.select("#num-layers").text(state.numTransformerBlocks);
+  state.currentFrameIdx = 0
+  currentFrame = frames[state.currentFrameIdx]
 
   // Make a simple network.
   let shape = [state.inputIds.length].concat(state.networkShape).concat([1]);
   network = nn.buildNetwork(shape, state.inputIds);
   drawNetwork(network);
-  updateUI(true);
+  updateUI();
 };
 
-function loadData() {
-  fetch('./test_out.json')
+function initialLoad() {
+  fetch('./data/contents.json')
     .then(response => response.json())
     .then(data => {
-      console.log("Experiment params", data)
-      state.dEmbed = data['d_embed'];
-    })
-    .catch(error => console.log(error));
-
-  fetch('./test_data.json')
-    .then(response => response.json())
-    .then(data => {
-      console.log("Loaded frames", data)
-      state.frames = data;
+      experiments = data;
+      console.log("Experiment list", experiments)
+      let exp_selector = d3.select("#experiment")
+      for (let exp_name of experiments) {
+        exp_selector.append("option").text(exp_name).attr("value", exp_name)
+        fetch(`./data/${exp_name}.json`)
+          .then(response => response.json())
+          .then(data => {
+            configs[exp_name] = data
+          })
+      }
+      console.log("All configs", configs)
     })
     .catch(error => console.log(error));
 }
 
-let parametersChanged = false;
+function loadData(filetag) {
+  console.log("Loading", filetag)
+  fetch(`./data/${filetag}_config.json`)
+    .then(response => response.json())
+    .then(data => {
+      console.log(`Experiment params for '${filetag}'`, data)
+      currentConfig = data;
+    })
+    .catch(error => console.log(error));
 
+  fetch(`./data/${filetag}_frames.json`)
+    .then(response => response.json())
+    .then(data => {
+      console.log("Frames", data)
+      frames = data;
+      nn.updateWeights(network, currentFrame.blocks[0].attention, null)
+      reset();
+    })
+    .catch(error => console.log(error));
+}
 
 makeGUI();
-loadData();
+initialLoad();
+loadData("sample");
 reset();
