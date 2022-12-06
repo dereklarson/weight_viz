@@ -24,13 +24,14 @@ type DataPoint = {
  * A multi-series line chart that allows you to append new data points
  * as data becomes available.
  */
-export class AppendingLineChart {
+export class LineChart {
   private numLines: number;
   private data: DataPoint[] = [];
   private svg;
   private xScale;
   private yScale;
   private paths;
+  private cursor;
   private lineColors: string[];
 
   private minY = Number.MAX_VALUE;
@@ -70,13 +71,22 @@ export class AppendingLineChart {
           "stroke-width": "1.5px"
         });
     }
+    this.cursor = this.svg
+      .append('circle')
+      .attr('cx', 0)
+      .attr('cy', 0)
+      .attr('r', 5)
+      .style('fill', 'green');
   }
 
-  reset() {
-    this.data = [];
-    this.redraw();
+  setData(data: number[][]) {
     this.minY = Number.MAX_VALUE;
     this.maxY = Number.MIN_VALUE;
+    this.data = [];
+    for (const point of data) {
+      this.addDataPoint(point)
+    }
+    this.redraw();
   }
 
   addDataPoint(dataPoint: number[]) {
@@ -89,7 +99,13 @@ export class AppendingLineChart {
     });
 
     this.data.push({ x: this.data.length + 1, y: dataPoint });
-    this.redraw();
+  }
+
+  setCursor(index: number) {
+    let dP = this.data[index]
+    this.cursor
+      .attr('cx', this.xScale(dP.x))
+      .attr('cy', this.yScale(dP.y[0]));
   }
 
   private redraw() {

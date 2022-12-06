@@ -71,33 +71,26 @@ export class Link {
  *   3 nodes in second hidden layer and 1 output node.
  * @param inputIds List of ids for the input nodes.
  */
-export function buildNetwork(networkShape: number[], inputIds: string[]): Node[][] {
-  let numLayers = networkShape.length;
+export function buildNetwork(blocks: number[], vocabulary: string[]): Node[][] {
+  // TODO For now, concatenate the 'output' node placeholder
+  blocks = blocks.concat(1)
+  let numBlocks = blocks.length;
   /** List of layers, with each layer being a list of nodes. */
-  let network: Node[][] = [];
-  for (let layerIdx = 0; layerIdx < numLayers; layerIdx++) {
-    let isOutputLayer = layerIdx === numLayers - 1;
-    let isInputLayer = layerIdx === 0;
+  let network: Node[][] = [vocabulary.map(token => new Node(token))];
+  for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
+    let isOutputblock = blockIdx === numBlocks - 1;
     let currentLayer: Node[] = [];
     network.push(currentLayer);
-    let numNodes = networkShape[layerIdx];
+    let numNodes = blocks[blockIdx];
     for (let i = 0; i < numNodes; i++) {
-      let nodeId = "";
-      if (isInputLayer) {
-        nodeId = inputIds[i];
-      } else {
-        nodeId = `${layerIdx}_${i}`
-      }
-      let node = new Node(nodeId);
+      let node = new Node(`${blockIdx}_${i}`)
       currentLayer.push(node);
-      if (layerIdx >= 1) {
-        // Add links from nodes in the previous layer to this node.
-        for (let j = 0; j < network[layerIdx - 1].length; j++) {
-          let prevNode = network[layerIdx - 1][j];
-          let link = new Link(prevNode, node);
-          prevNode.outputs.push(link);
-          node.inputLinks.push(link);
-        }
+      // Add links from nodes in the previous layer to this node.
+      for (let j = 0; j < network[blockIdx].length; j++) {
+        let prevNode = network[blockIdx][j];
+        let link = new Link(prevNode, node);
+        prevNode.outputs.push(link);
+        node.inputLinks.push(link);
       }
     }
   }
@@ -120,7 +113,7 @@ export function updateWeights(network: Node[][], frame_heads: number[][][], sele
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
       let cols = new Array(10).fill(0);
-      if (selectedTokenId) {
+      if (selectedTokenId !== null) {
         cols = frame_heads[i][selectedTokenId]
       }
       else {
@@ -150,6 +143,10 @@ export function forEachNode(network: Node[][], ignoreInputs: boolean,
       accessor(node);
     }
   }
+}
+
+export function parseNodeId(nodeId: string) {
+  return [parseInt(nodeId.split("_")[0]), parseInt(nodeId.split("_")[1])]
 }
 
 /** Returns the output node in the network. */

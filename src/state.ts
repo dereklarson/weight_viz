@@ -38,27 +38,16 @@ export class State {
     { name: "currentTag", type: Type.STRING },
     { name: "currentFrameIdx", type: Type.NUMBER },
     { name: "seed", type: Type.NUMBER },
-
-    { name: "networkShape", type: Type.ARRAY_NUMBER },
-    { name: "numTransformerBlocks", type: Type.NUMBER },
-
-    { name: "batchSize", type: Type.NUMBER },
   ];
 
   [key: string]: any;
   experiment: string = "sample";
-  currentTag: string = "sample";
+  currentTag: string = "1";
   currentFrameIdx: number = 0;
-  nodeState: { [id: string]: boolean } = {};
-  inputIds: string[] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
   seed: number = 1;
 
-  // Useful for now, will convert later
-  networkShape: number[] = [4];
-  numTransformerBlocks = 1;
-
-  // Remove once cleaned from usage
-  batchSize = 10;
+  // Should we serialize tokenState?
+  tokenState: { [id: string]: boolean } = {};
 
   /**
    * Deserializes the state from the url hash.

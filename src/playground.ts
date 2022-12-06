@@ -15,7 +15,7 @@ limitations under the License.
 
 import * as d3 from 'd3';
 import { HeatMap } from "./heatmap";
-import { AppendingLineChart } from "./linechart";
+import { LineChart } from "./linechart";
 import * as nn from "./nn";
 import { Player } from "./player";
 import { State } from "./state";
@@ -38,8 +38,10 @@ enum HoverType {
 let state = State.deserializeState();
 
 let experiments: string[] = [];
-let configs = { sample: { name: "Sample", tags: ["sample"] } }
-let currentConfig = {}
+let expTags = { sample: { name: "Sample", tags: ["1"] } }
+let currentConfig = {
+  vocabulary: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], n_heads: 4, n_blocks: 1
+}
 let currentFrame = {
   epoch: 0,
   lossTest: 1,
@@ -56,7 +58,7 @@ let frames = [currentFrame];
 let selectedNodeId: string = null;
 // Plot the heatmap.
 let xDomain: [number, number] = [-6, 6];
-let heatMap =
+let finalHeatMap =
   new HeatMap(300, 10, xDomain, xDomain, d3.select("#heatmap"),
     { showAxes: true });
 let linkWidthScale = d3.scale.linear()
@@ -69,7 +71,7 @@ let colorScale = d3.scale.linear<string, number>()
   .clamp(true);
 let network: nn.Node[][] = null;
 let player = new Player();
-let lineChart = new AppendingLineChart(d3.select("#linechart"),
+let lineChart = new LineChart(d3.select("#linechart"),
   ["#777", "black"]);
 
 function makeGUI() {
@@ -98,23 +100,24 @@ function makeGUI() {
     step(-1);
   });
 
-  // d3.select("#load-experiment-button").on("click", () => {
-  //   loadData();
-  // });
-
-  let batchSize = d3.select("#batchSize").on("input", function () {
-    state.batchSize = this.value;
-    d3.select("label[for='batchSize'] .value").text(this.value);
-    reset();
+  d3.select("#load-experiment-button").on("click", () => {
+    loadData(expTags[state.experiment].tags[state.seed - 1]);
   });
-  batchSize.property("value", state.batchSize);
-  d3.select("label[for='batchSize'] .value").text(state.batchSize);
+
+  let seedSlider = d3.select("#seed").on("input", function () {
+    state.seed = this.value;
+    d3.select("label[for='seed'] .value").text(this.value);
+    // reset();
+  });
+  seedSlider.property("value", state.seed);
+  d3.select("label[for='seed'] .value").text(state.seed);
 
   let experiment = d3.select("#experiment").on("change", function () {
     state.experiment = this.value;
-    state.currentTag = configs[state.experiment].tags[0];
+    state.currentTag = expTags[state.experiment].tags[0];
+    d3.select("#seed").property("max", expTags[state.experiment].tags.length)
     loadData(state.currentTag);
-    reset();
+    // reset();
   });
   experiment.property("value", state.experiment);
 
@@ -188,7 +191,7 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
       updateUI();
     })
     .on("click", function () {
-      state.nodeState[nodeId] = !state.nodeState[nodeId];
+      state.tokenState[nodeId] = !state.tokenState[nodeId];
       reset()
     });
 
@@ -208,7 +211,7 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
   });
   text.append("tspan").text(nodeId)
 
-  let activeOrNotClass = state.nodeState[nodeId] ? "active" : "inactive";
+  let activeOrNotClass = state.tokenState[nodeId] ? "active" : "inactive";
   nodeGroup.classed(activeOrNotClass, true);
 }
 
@@ -248,8 +251,8 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       selectedNodeId = nodeId;
       attn_div.classed("hovered", true);
       nodeGroup.classed("hovered", true);
-      let headIdx: number = parseInt(nodeId.split("_")[1])
-      heatMap.updateBackground(currentFrame.blocks[0].attention[headIdx]);
+      let [blockIdx, headIdx] = nn.parseNodeId(nodeId);
+      finalHeatMap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx]);
     })
     .on("mouseleave", function () {
       selectedNodeId = null;
@@ -257,7 +260,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       nodeGroup.classed("hovered", false);
       // heatMap.updateBackground(boundary[nn.getOutputNode(network).id]);
     });
-  let attnHeatMap = new HeatMap(RECT_SIZE, 10, xDomain,
+  let attnHeatMap = new HeatMap(RECT_SIZE, currentConfig.vocabulary.length, xDomain,
     xDomain, attn_div, { noSvg: true });
   attn_div.datum({ heatmap: attnHeatMap, id: nodeId });
 
@@ -272,7 +275,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + RECT_SIZE + 3}px`,
       top: `${y + 3}px`
     })
-  let outputHeatMap = new HeatMap(RECT_SIZE, 10, xDomain,
+  let outputHeatMap = new HeatMap(RECT_SIZE, currentConfig.vocabulary.length, xDomain,
     xDomain, output_div, { noSvg: true });
   output_div.datum({ heatmap: outputHeatMap, id: `out_${nodeId}` });
 
@@ -310,8 +313,8 @@ function drawNetwork(network: nn.Node[][]): void {
 
   // Draw the input layer.
   let cx = TOKEN_SIZE / 2 + 50;
-  let maxY = nodeIndexScale(state.inputIds.length, TOKEN_SIZE);
-  state.inputIds.forEach((nodeId, i) => {
+  let maxY = nodeIndexScale(currentConfig.vocabulary.length, TOKEN_SIZE);
+  currentConfig.vocabulary.forEach((nodeId, i) => {
     let cy = nodeIndexScale(i, TOKEN_SIZE) + TOKEN_SIZE / 2;
     node2coord[nodeId] = { cx, cy };
     drawInputNode(cx, cy, nodeId, container);
@@ -412,7 +415,7 @@ function drawLink(
   let source = node2coord[input.source.id];
   let dest = node2coord[input.dest.id];
   let dimension = RECT_SIZE * 2;
-  if (state.inputIds.includes(input.source.id)) {
+  if (currentConfig.vocabulary.includes(input.source.id)) {
     dimension = TOKEN_SIZE;
   }
   let datum = {
@@ -455,12 +458,12 @@ function updateUI() {
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
       if (data.id.startsWith("out_")) {
-        let headIdx: number = parseInt(data.id.slice(4).split("_")[1])
-        data.heatmap.updateBackground(currentFrame.blocks[0].output[headIdx])
+        let [blockIdx, headIdx] = nn.parseNodeId(data.id.slice(4));
+        data.heatmap.updateBackground(currentFrame.blocks[blockIdx].output[headIdx])
       }
       else {
-        let headIdx: number = parseInt(data.id.split("_")[1])
-        data.heatmap.updateBackground(currentFrame.blocks[0].attention[headIdx])
+        let [blockIdx, headIdx] = nn.parseNodeId(data.id);
+        data.heatmap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx])
       }
     });
 
@@ -478,7 +481,6 @@ function updateUI() {
     return Math.log(n).toFixed(2);
   }
 
-  // d3.select("#layers-label").text("Transformer blocks");
   d3.select("#loss-train").text(logHumanReadable(currentFrame.lossTrain));
   d3.select("#loss-test").text(logHumanReadable(currentFrame.lossTest));
   d3.select("#epoch-number").text(addCommas(zeroPad(currentFrame.epoch)));
@@ -495,6 +497,7 @@ function step(count: number): void {
   }
   currentFrame = frames[state.currentFrameIdx]
   nn.updateWeights(network, currentFrame.blocks[0].attention, null)
+  lineChart.setCursor(state.currentFrameIdx)
   updateUI();
 }
 player.onTick(step)
@@ -515,15 +518,19 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 }
 
 function reset() {
-  lineChart.reset();
   state.serialize();
   player.pause();
   state.currentFrameIdx = 0
   currentFrame = frames[state.currentFrameIdx]
+  lineChart.setData(frames.map(frame => [frame.lossTest, frame.lossTrain]));
+  lineChart.setCursor(state.currentFrameIdx)
 
   // Make a simple network.
-  let shape = [state.inputIds.length].concat(state.networkShape).concat([1]);
-  network = nn.buildNetwork(shape, state.inputIds);
+  d3.select("#heatmap").selectAll("div").remove();
+  finalHeatMap = new HeatMap(300, currentConfig.vocabulary.length, xDomain, xDomain, d3.select("#heatmap"),
+    { showAxes: true });
+  let shape = new Array(currentConfig.n_blocks).fill(currentConfig.n_heads)
+  network = nn.buildNetwork(shape, currentConfig.vocabulary);
   drawNetwork(network);
   updateUI();
 };
@@ -540,17 +547,18 @@ function initialLoad() {
         fetch(`./data/${exp_name}.json`)
           .then(response => response.json())
           .then(data => {
-            configs[exp_name] = data
+            expTags[exp_name] = data
           })
       }
-      console.log("All configs", configs)
+      console.log("All Experiment Tags", expTags)
+      d3.select("#seed").property("max", expTags[state.experiment].tags.length)
     })
     .catch(error => console.log(error));
 }
 
 function loadData(filetag) {
-  console.log("Loading", filetag)
-  fetch(`./data/${filetag}_config.json`)
+  console.log("Loading tag:", filetag)
+  fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())
     .then(data => {
       console.log(`Experiment params for '${filetag}'`, data)
@@ -558,7 +566,7 @@ function loadData(filetag) {
     })
     .catch(error => console.log(error));
 
-  fetch(`./data/${filetag}_frames.json`)
+  fetch(`./data/${state.experiment}__${filetag}__frames.json`)
     .then(response => response.json())
     .then(data => {
       console.log("Frames", data)
@@ -571,5 +579,5 @@ function loadData(filetag) {
 
 makeGUI();
 initialLoad();
-loadData("sample");
-reset();
+loadData(state.currentTag);
+reset()
