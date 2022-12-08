@@ -36,18 +36,19 @@ export class HeatMap {
   };
   private xScale;
   private yScale;
-  private numSamples: number;
+  private nRow: number;
+  private nCol: number;
   private color;
   private canvas;
   private svg;
 
   constructor(
-    width: number, numSamples: number, xDomain: [number, number],
+    width: number, nRow: number, nCol: number, xDomain: [number, number],
     yDomain: [number, number], container,
     userSettings?: HeatMapSettings) {
-    this.numSamples = numSamples;
-    let height = width;
-    let padding = userSettings.showAxes ? 20 : 0;
+    this.nRow = nRow;
+    this.nCol = nCol;
+    let height = (nRow / nCol) * width
 
     if (userSettings != null) {
       // overwrite the defaults with the user-specified settings.
@@ -55,6 +56,7 @@ export class HeatMap {
         this.settings[prop] = userSettings[prop];
       }
     }
+    let padding = this.settings.showAxes ? 20 : 0;
 
     this.xScale = d3.scale.linear()
       .domain(xDomain)
@@ -89,13 +91,15 @@ export class HeatMap {
         left: `-${padding}px`
       });
     this.canvas = container.append("canvas")
-      .attr("width", numSamples)
-      .attr("height", numSamples)
+      .attr("width", nCol)
+      .attr("height", nRow)
       .style("width", (width - 2 * padding) + "px")
       .style("height", (height - 2 * padding) + "px")
       .style("position", "absolute")
       .style("top", `${padding}px`)
-      .style("left", `${padding}px`);
+      .style("left", `${padding}px`)
+      // 'image-rendering: pixelated' avoids blurring between datapoints on scaling
+      .style("image-rendering", "pixelated");
 
     if (!this.settings.noSvg) {
       this.svg = container.append("svg").attr({
@@ -140,10 +144,10 @@ export class HeatMap {
 
     // console.log("UpdateBackground", dx, dy, data)
 
-    if (dx !== this.numSamples || dy !== this.numSamples) {
+    if (dx !== this.nCol || dy !== this.nRow) {
       throw new Error(
         "The provided data matrix must be of size " +
-        "numSamples X numSamples");
+        `nRow(${this.nRow}) X nCol(${this.nCol})`);
     }
 
     // Compute the pixel colors; scaled by CSS.
@@ -152,12 +156,12 @@ export class HeatMap {
 
     for (let y = 0, p = -1; y < dy; ++y) {
       for (let x = 0; x < dx; ++x) {
-        let value = data[x][y];
+        let value = data[y][x];
         let c = d3.rgb(this.color(value));
         image.data[++p] = c.r;
         image.data[++p] = c.g;
         image.data[++p] = c.b;
-        image.data[++p] = 160;
+        image.data[++p] = 190;
       }
     }
     context.putImageData(image, 0, 0);

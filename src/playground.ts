@@ -37,10 +37,20 @@ enum HoverType {
 
 let state = State.deserializeState();
 
+// Supplementary state variables that won't be serialized
+let selectedTokenId: string = null;
+let selectedNodeId: string = "0_0";
+
+// Variables that contain loaded data
 let experiments: string[] = [];
 let expTags = { sample: { name: "Sample", tags: ["1"] } }
 let currentConfig = {
-  vocabulary: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], n_heads: 4, n_blocks: 1
+  n_ctx: 2,
+  d_embed: 8,
+  n_heads: 4,
+  n_blocks: 1,
+  n_vocab: 10,
+  vocabulary: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
 }
 let currentFrame = {
   epoch: 0,
@@ -55,11 +65,12 @@ let currentFrame = {
   ]
 }
 let frames = [currentFrame];
-let selectedNodeId: string = null;
 // Plot the heatmap.
 let xDomain: [number, number] = [-6, 6];
+let residualHeatMap =
+  new HeatMap(100, currentConfig.n_ctx, currentConfig.d_embed, xDomain, xDomain, d3.select("#residual-input"));
 let finalHeatMap =
-  new HeatMap(300, 10, xDomain, xDomain, d3.select("#heatmap"),
+  new HeatMap(300, 10, 10, xDomain, xDomain, d3.select("#heatmap"),
     { showAxes: true });
 let linkWidthScale = d3.scale.linear()
   .domain([0, 5])
@@ -100,6 +111,15 @@ function makeGUI() {
     step(-1);
   });
 
+  let useContext = d3.select("#use-context").on("change", function () {
+    state.useContext = this.checked;
+    state.serialize();
+    d3.select("#residual-box").classed("hidden", !this.checked)
+    redraw()
+  });
+  useContext.property("checked", state.useContext);
+  d3.select("#residual-box").classed("hidden", !state.useContext)
+
   d3.select("#load-experiment-button").on("click", () => {
     loadData(expTags[state.experiment].tags[state.seed - 1]);
   });
@@ -111,6 +131,17 @@ function makeGUI() {
   });
   seedSlider.property("value", state.seed);
   d3.select("label[for='seed'] .value").text(state.seed);
+
+  let scrubber = d3.select("#scrubber").on("input", function () {
+    state.currentFrameIdx = this.value;
+    // d3.select("label[for='seed'] .value").text(this.value);
+    // reset();
+    currentFrame = frames[state.currentFrameIdx]
+    nn.updateWeights(network, currentFrame.blocks[0].attention, null)
+    lineChart.setCursor(state.currentFrameIdx)
+    updateUI();
+  });
+  scrubber.property("value", state.currentFrameIdx);
 
   let experiment = d3.select("#experiment").on("change", function () {
     state.experiment = this.value;
@@ -164,7 +195,7 @@ function updateWeightsUI(network: nn.Node[][], container) {
   }
 }
 
-function drawInputNode(cx: number, cy: number, nodeId: string,
+function drawTokenNode(cx: number, cy: number, nodeId: string,
   container, node?: nn.Node) {
   let dimension = TOKEN_SIZE
   let x = cx - dimension / 2;
@@ -177,14 +208,14 @@ function drawInputNode(cx: number, cy: number, nodeId: string,
       "transform": `translate(${x},${y})`
     })
     .on("mouseenter", function () {
-      selectedNodeId = nodeId;
+      selectedTokenId = nodeId;
       rect.classed("hovered", true);
       nodeGroup.classed("hovered", true);
       nn.updateWeights(network, currentFrame.blocks[0].attention, parseInt(nodeId))
       updateUI();
     })
     .on("mouseleave", function () {
-      selectedNodeId = null;
+      selectedTokenId = null;
       rect.classed("hovered", false);
       nodeGroup.classed("hovered", false);
       nn.updateWeights(network, currentFrame.blocks[0].attention, null)
@@ -255,13 +286,13 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       finalHeatMap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx]);
     })
     .on("mouseleave", function () {
-      selectedNodeId = null;
       attn_div.classed("hovered", false);
       nodeGroup.classed("hovered", false);
       // heatMap.updateBackground(boundary[nn.getOutputNode(network).id]);
     });
-  let attnHeatMap = new HeatMap(RECT_SIZE, currentConfig.vocabulary.length, xDomain,
-    xDomain, attn_div, { noSvg: true });
+  let attnHeatMap = new HeatMap(RECT_SIZE,
+    currentConfig.n_vocab, currentConfig.n_vocab,
+    xDomain, xDomain, attn_div, { noSvg: true });
   attn_div.datum({ heatmap: attnHeatMap, id: nodeId });
 
 
@@ -275,8 +306,8 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + RECT_SIZE + 3}px`,
       top: `${y + 3}px`
     })
-  let outputHeatMap = new HeatMap(RECT_SIZE, currentConfig.vocabulary.length, xDomain,
-    xDomain, output_div, { noSvg: true });
+  let outputHeatMap = new HeatMap(RECT_SIZE, currentConfig.n_vocab, currentConfig.n_vocab,
+    xDomain, xDomain, output_div, { noSvg: true });
   output_div.datum({ heatmap: outputHeatMap, id: `out_${nodeId}` });
 
 
@@ -317,7 +348,7 @@ function drawNetwork(network: nn.Node[][]): void {
   currentConfig.vocabulary.forEach((nodeId, i) => {
     let cy = nodeIndexScale(i, TOKEN_SIZE) + TOKEN_SIZE / 2;
     node2coord[nodeId] = { cx, cy };
-    drawInputNode(cx, cy, nodeId, container);
+    drawTokenNode(cx, cy, nodeId, container);
   });
 
   // Draw the intermediate layers.
@@ -364,47 +395,23 @@ function getRelativeHeight(selection) {
   return node.offsetHeight + node.offsetTop;
 }
 
-function updateHoverCard(type: HoverType, nodeOrLink?: nn.Node | nn.Link,
+function updateHoverCard(display: boolean, link?: nn.Link,
   coordinates?: [number, number]) {
   let hovercard = d3.select("#hovercard");
-  if (type == null) {
+  if (!display) {
     hovercard.style("display", "none");
     d3.select("#svg").on("click", null);
     return;
   }
-  d3.select("#svg").on("click", () => {
-    hovercard.select(".value").style("display", "none");
-    let input = hovercard.select("input");
-    input.style("display", null);
-    input.on("input", function () {
-      if (this.value != null && this.value !== "") {
-        if (type === HoverType.WEIGHT) {
-          (nodeOrLink as nn.Link).weight = +this.value;
-        }
-        updateUI();
-      }
-    });
-    input.on("keypress", () => {
-      if ((d3.event as any).keyCode === 13) {
-        updateHoverCard(type, nodeOrLink, coordinates);
-      }
-    });
-    (input.node() as HTMLInputElement).focus();
-  });
-  let value = (nodeOrLink as nn.Link).weight
-  let name = "Weight";
+  let value = (link as nn.Link).weight
   hovercard.style({
     "left": `${coordinates[0] + 20}px`,
     "top": `${coordinates[1]}px`,
     "display": "block"
   });
-  hovercard.select(".type").text(name);
   hovercard.select(".value")
     .style("display", null)
     .text(value.toPrecision(2));
-  hovercard.select("input")
-    .property("value", value.toPrecision(2))
-    .style("display", "none");
 }
 
 function drawLink(
@@ -442,7 +449,7 @@ function drawLink(
     .attr("d", diagonal(datum, 0))
     .attr("class", "link-hover")
     .on("mouseenter", function () {
-      updateHoverCard(HoverType.WEIGHT, input, d3.mouse(this));
+      updateHoverCard(true, input, d3.mouse(this));
     }).on("mouseleave", function () {
       updateHoverCard(null);
     });
@@ -452,9 +459,12 @@ function drawLink(
 function updateUI() {
   // Update the links visually.
   updateWeightsUI(network, d3.select("g.core"));
-  let selectedId = selectedNodeId != null ?
-    selectedNodeId : nn.getOutputNode(network).id;
 
+  let [blockIdx, headIdx] = nn.parseNodeId(selectedNodeId);
+  finalHeatMap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx]);
+  residualHeatMap.updateBackground([[0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4], [1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0]]);
+
+  // Update all attention and output patterns for nodes.
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
       if (data.id.startsWith("out_")) {
@@ -486,6 +496,7 @@ function updateUI() {
   d3.select("#epoch-number").text(addCommas(zeroPad(currentFrame.epoch)));
 }
 
+
 function step(count: number): void {
   state.currentFrameIdx += count;
   if (state.currentFrameIdx >= frames.length) {
@@ -496,6 +507,7 @@ function step(count: number): void {
     state.currentFrameIdx = 0
   }
   currentFrame = frames[state.currentFrameIdx]
+  d3.select("#scrubber").property("value", state.currentFrameIdx);
   nn.updateWeights(network, currentFrame.blocks[0].attention, null)
   lineChart.setCursor(state.currentFrameIdx)
   updateUI();
@@ -524,11 +536,13 @@ function reset() {
   currentFrame = frames[state.currentFrameIdx]
   lineChart.setData(frames.map(frame => [frame.lossTest, frame.lossTrain]));
   lineChart.setCursor(state.currentFrameIdx)
+  redraw()
+};
 
-  // Make a simple network.
+function redraw() {
   d3.select("#heatmap").selectAll("div").remove();
-  finalHeatMap = new HeatMap(300, currentConfig.vocabulary.length, xDomain, xDomain, d3.select("#heatmap"),
-    { showAxes: true });
+  finalHeatMap = new HeatMap(300, currentConfig.n_vocab, currentConfig.n_vocab,
+    xDomain, xDomain, d3.select("#heatmap"), { showAxes: true });
   let shape = new Array(currentConfig.n_blocks).fill(currentConfig.n_heads)
   network = nn.buildNetwork(shape, currentConfig.vocabulary);
   drawNetwork(network);

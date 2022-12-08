@@ -38,6 +38,7 @@ export class State {
     { name: "currentTag", type: Type.STRING },
     { name: "currentFrameIdx", type: Type.NUMBER },
     { name: "seed", type: Type.NUMBER },
+    { name: "useContext", type: Type.BOOLEAN },
   ];
 
   [key: string]: any;
@@ -45,6 +46,7 @@ export class State {
   currentTag: string = "1";
   currentFrameIdx: number = 0;
   seed: number = 1;
+  useContext: boolean = false;
 
   // Should we serialize tokenState?
   tokenState: { [id: string]: boolean } = {};

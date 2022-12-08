@@ -67,6 +67,10 @@ body {
   margin-right: auto;
 }
 
+.hidden {
+  display: none
+}
+
 @media (min-width: 1180px) {
   .l--page {
     width: 1100px;
@@ -285,6 +289,7 @@ header h1 .optional {
 
 #top-controls .control {
   flex-grow: 1;
+  justify-content: center;
   max-width: 180px;
   min-width: 110px;
   margin-left: 30px;
@@ -304,6 +309,15 @@ header h1 .optional {
   font-size: 24px;
   margin: 0;
   font-weight: 300;
+}
+
+#top-controls .control p.slider {
+  align-self: center;
+  justify-content: center;
+}
+
+#top-controls .control .ui-scrubber {
+  display: block;
 }
 
 #top-controls .control .select {
@@ -331,7 +345,7 @@ header h1 .optional {
 }
 
 #top-controls .control .select::after {
-  class: "material-icons";
+  /* class: "material-icons"; */
   content: "arrow_drop_down";
   color: #999;
   font-family: 'Material Icons';
@@ -381,7 +395,7 @@ header h1 .optional {
   -webkit-justify-content: space-between;
   justify-content: space-between;
   margin-top: 30px;
-  margin-bottom: 50px;
+  margin-bottom: 20px;
   padding-top: 2px;
   position: relative;
 }
@@ -437,9 +451,9 @@ header h1 .optional {
   background: white;
 }
 
-svg text {
+/* svg text {
   dominant-baseline: middle;
-}
+} */
 
 canvas {
   display: block;
@@ -467,7 +481,7 @@ g.column rect {
 
 #heatmap .tick text {
   fill: #bbb;
-  dominant-baseline: auto;
+  /* dominant-baseline: auto; */
 }
 
 #heatmap .tick:nth-child(7) text {
@@ -489,16 +503,16 @@ g.column rect {
   align-items: center;
 }
 
-.data.column {
+.options.column {
   width: 10%;
 }
 
-.data.column .dataset-list {
+.options.column .dataset-list {
   margin: 20px 0 10px;
   overflow: hidden;
 }
 
-.data.column .dataset {
+.options.column .dataset {
   position: relative;
   float: left;
   width: 34px;
@@ -506,39 +520,8 @@ g.column rect {
   margin: 0 14px 14px 0;
 }
 
-.data.column .dataset:nth-of-type(2n) {
+.options.column .dataset:nth-of-type(2n) {
   margin-right: 0;
-}
-
-.data.column .data-thumbnail {
-  cursor: pointer;
-  width: 100%;
-  height: 100%;
-  opacity: 0.2;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-}
-
-.data.column .data-thumbnail:hover {
-  border: 2px solid #999;
-}
-
-.data.column .data-thumbnail.selected {
-  border: 2px solid black;
-  opacity: 1;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
-  background-color: white;
-}
-
-#main-part .data.column .dataset .label {
-  position: absolute;
-  left: 48px;
-  top: calc(50% - 9px);
-  display: none;
-}
-
-#main-part .data.column p.slider {
-  margin: 0 -25px 20px;
 }
 
 #main-part .basic-button {
@@ -738,30 +721,66 @@ g.column rect {
   left: -2px;
 }
 
+/* Residual tracking */
+
+#residual-box {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  margin-top: 20px;
+  margin-bottom: 30px;
+  padding-top: 2px;
+  position: relative;
+}
+
+#residual-box h4 {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  font-weight: 400;
+  font-size: 16px;
+  text-transform: uppercase;
+  position: relative;
+  padding-bottom: 8px;
+  margin: 0;
+  line-height: 1.4em;
+}
+
+#residual-input {
+  align-items: center;
+}
+
 /* Hidden layers column */
 
-.hidden-layers.column {
+.blocks.column {
   width: 40%;
 }
 
-#main-part .hidden-layers h4 {
+#main-part .blocks h4 {
   -webkit-justify-content: center;
   justify-content: center;
   margin-top: -5px;
 }
 
-.hidden-layers #layers-label {
+.blocks #layers-label {
   width: 125px;
   display: inline-block;
 }
 
-.hidden-layers #num-layers {
+.blocks #num-layers {
   margin: 0 10px;
   width: 10px;
   display: inline-block;
 }
 
-.hidden-layers h4 .mdl-button {
+.blocks h4 .mdl-button {
   margin-right: 5px;
 }
 
@@ -903,26 +922,6 @@ footer .links a {
 
 footer .links a:hover {
   text-decoration: underline;
-}
-
-.hide-controls {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
-  display: flex;
-  flex-wrap: wrap;
-  -webkit-justify-content: space-between;
-  justify-content: space-between;
-}
-
-.hide-controls label.mdl-checkbox {
-  width: 145px;
-  height: 30px;
-}
-
-.hide-controls .mdl-checkbox__label {
-  font-size: 13px;
 }
 
 /* Material Overrides */

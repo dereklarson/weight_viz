@@ -26,7 +26,7 @@ limitations under the License.
   <link rel="stylesheet" href="bundle.css" type="text/css">
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet"
     type="text/css">
-  <!-- <script src="lib.js"></script> -->
+  <script src="lib.js"></script>
 </head>
 
 <body>
@@ -42,6 +42,14 @@ limitations under the License.
   <!-- Top Controls -->
   <div id="top-controls">
     <div class="container l--page">
+      <div class="control ui-experiment">
+        <label for="experiment">Experiment</label>
+        <div class="select">
+          <select id="experiment">
+            <option value="sample">Sample</option>
+          </select>
+        </div>
+      </div>
       <div class="timeline-controls">
         <button class="mdl-button mdl-js-button mdl-button--icon ui-resetButton" id="reset-button"
           title="Reset the network">
@@ -59,17 +67,15 @@ limitations under the License.
           <i class="material-icons">skip_next</i>
         </button>
       </div>
+      <div class="control ui-scrubber">
+        <span class="label">Scrubbing</span>
+        <p class="slider">
+          <input class="mdl-slider mdl-js-slider" type="range" id="scrubber" min="0" max="100" step="1">
+        </p>
+      </div>
       <div class="control">
         <span class="label">Epoch</span>
         <span class="value" id="epoch-number"></span>
-      </div>
-      <div class="control ui-experiment">
-        <label for="experiment">Experiment</label>
-        <div class="select">
-          <select id="experiment">
-            <option value="sample">Sample</option>
-          </select>
-        </div>
       </div>
     </div>
   </div>
@@ -77,8 +83,8 @@ limitations under the License.
   <!-- Main Part -->
   <div id="main-part" class="l--page">
 
-    <!--  Data Column-->
-    <div class="column data">
+    <!--  Options Column-->
+    <div class="column options">
       <h4>
         <span>Options</span>
       </h4>
@@ -91,6 +97,10 @@ limitations under the License.
         </div>
       </div>
       <div>
+        <label class="ui-useContext mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-context">
+          <input type="checkbox" id="use-context" class="mdl-checkbox__input">
+          <span class="mdl-checkbox__label label">Use Context</span>
+        </label>
         <div class="ui-seed">
           <label for="seed">Configuration Seed:&nbsp;&nbsp;<span class="value">XX</span></label>
           <p class="slider">
@@ -118,15 +128,13 @@ limitations under the License.
         </svg>
         <!-- Hover card -->
         <div id="hovercard">
-          <div style="font-size:10px">Click anywhere to edit.</div>
-          <div><span class="type">Weight/Bias</span> is <span class="value">0.2</span><span><input
-                type="number" /></span>.</div>
+          <span>Weight is </span><span class="value">0.2</span>
         </div>
       </div>
     </div>
 
-    <!-- Hidden Layers Column -->
-    <div class="column hidden-layers">
+    <!-- Transformer Blocks Column -->
+    <div class="column blocks">
       <h4>
         <span id="layers-label">Transformer Blocks</span>
       </h4>
@@ -171,6 +179,16 @@ limitations under the License.
       </div>
     </div>
 
+  </div>
+  <div id="residual-box" class="l--page hidden">
+    <div class="column options">
+      <h4>Residual Stream</h4>
+      <p>Track changes to the residuals through each layer</p>
+    </div>
+    <div id="residual-input" class="column features">
+    </div>
+    <div id="residual-layers" class="column blocks"></div>
+    <div id="residual-output" class="column output"></div>
   </div>
 
   <script src="bundle.js"></script>

@@ -78,7 +78,7 @@ export function buildNetwork(blocks: number[], vocabulary: string[]): Node[][] {
   /** List of layers, with each layer being a list of nodes. */
   let network: Node[][] = [vocabulary.map(token => new Node(token))];
   for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
-    let isOutputblock = blockIdx === numBlocks - 1;
+    // let isOutputblock = blockIdx === numBlocks - 1;
     let currentLayer: Node[] = [];
     network.push(currentLayer);
     let numNodes = blocks[blockIdx];

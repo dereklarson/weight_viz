@@ -43,7 +43,7 @@ export class LineChart {
     let node = container.node() as HTMLElement;
     let totalWidth = node.offsetWidth;
     let totalHeight = node.offsetHeight;
-    let margin = { top: 2, right: 0, bottom: 2, left: 2 };
+    let margin = { top: 5, right: 3, bottom: 5, left: 5 };
     let width = totalWidth - margin.left - margin.right;
     let height = totalHeight - margin.top - margin.bottom;
 
@@ -75,7 +75,7 @@ export class LineChart {
       .append('circle')
       .attr('cx', 0)
       .attr('cy', 0)
-      .attr('r', 5)
+      .attr('r', 3)
       .style('fill', 'green');
   }
 
