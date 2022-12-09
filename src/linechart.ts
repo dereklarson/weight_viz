@@ -55,6 +55,7 @@ export class LineChart {
       .domain([0, 0])
       .range([height, 0]);
 
+    container.selectAll("svg").remove()
     this.svg = container.append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom)

@@ -20,30 +20,32 @@ import * as nn from "./nn";
 import { Player } from "./player";
 import { State } from "./state";
 
-let mainWidth;
-
 const TOKEN_SIZE = 24;
 const RECT_SIZE = 80;
 
-enum HoverType {
-  BIAS, WEIGHT
-}
+let mainWidth;
+let player = new Player();
 
-// TODO Add an interface to support more complicated tokens
-// interface InputFeature {
-//   label?: string;
-// }
-
-
+// State contains variables we can load from the URL
 let state = State.deserializeState();
 
 // Supplementary state variables that won't be serialized
 let selectedTokenId: string = null;
 let selectedNodeId: string = "0_0";
 
-// Variables that contain loaded data
-let experiments: string[] = [];
-let expTags = { sample: { name: "Sample", tags: ["1"] } }
+/*** Variables that contain loaded data ***/
+// A supplied glossary for parameter abbrevations
+let tagGlossary: { [key: string]: string } = {}
+function parseTag(tag: string) {
+  let terms = []
+  for (let pair of tag.split("_")) {
+    let [key, val] = pair.split("@")
+    terms.push(`${tagGlossary[key]}=${val}`)
+  }
+  return terms.join(", ")
+}
+
+let experiments = { sample: { name: "Sample", tags: ["default"] } }
 let currentConfig = {
   n_ctx: 2,
   d_embed: 8,
@@ -56,6 +58,8 @@ let currentFrame = {
   epoch: 0,
   lossTest: 1,
   lossTrain: 1,
+  embedding: new Array(currentConfig.n_vocab).fill(0).map(_ => new Array(8).fill(0)),
+  pos_embed: new Array(currentConfig.n_ctx).fill(0).map(_ => new Array(8).fill(0)),
   blocks: [
     {
       attention: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0))),
@@ -65,10 +69,10 @@ let currentFrame = {
   ]
 }
 let frames = [currentFrame];
-// Plot the heatmap.
 let xDomain: [number, number] = [-6, 6];
-let residualHeatMap =
-  new HeatMap(100, currentConfig.n_ctx, currentConfig.d_embed, xDomain, xDomain, d3.select("#residual-input"));
+let lineChart;
+let residualHeatMap;
+let positionalHeatMap;
 let finalHeatMap =
   new HeatMap(300, 10, 10, xDomain, xDomain, d3.select("#heatmap"),
     { showAxes: true });
@@ -80,25 +84,36 @@ let colorScale = d3.scale.linear<string, number>()
   .domain([-1, 0, 1])
   .range(["#f59322", "#e8eaeb", "#0877bd"])
   .clamp(true);
-let network: nn.Node[][] = null;
-let player = new Player();
-let lineChart = new LineChart(d3.select("#linechart"),
-  ["#777", "black"]);
+let transformer: nn.Node[][] = null;
 
 function makeGUI() {
-  d3.select("#reset-button").on("click", () => {
-    state.currentFrameIdx = 0;
-    reset();
-    d3.select("#play-pause-button");
+  /* Two dropdown menus to select the Experiment and Configuration */
+  let configuration = d3.select("#configuration").on("input", function () {
+    state.currentTag = this.value;
+    loadData(state.experiment, state.currentTag);
   });
 
-  d3.select("#play-pause-button").on("click", function () {
-    // Change the button's content.
-    player.playOrPause();
+  d3.select("#experiment").on("change", function () {
+    state.experiment = this.value;
+    state.currentTag = experiments[state.experiment].tags[0];
+    configuration.selectAll("option").remove()
+    experiments[state.experiment].tags.forEach(tag => {
+      let name = tag === "default" ? "Default" : parseTag(tag)
+      configuration.append("option").text(name).attr("value", tag)
+    })
+    loadData(state.experiment, state.currentTag);
   });
+
+  /* The Player controls: play/pause, reset, and step left or right */
+  d3.select("#play-pause-button").on("click", () => player.playOrPause());
 
   player.onPlayPause(isPlaying => {
     d3.select("#play-pause-button").classed("playing", isPlaying);
+  });
+
+  d3.select("#reset-button").on("click", () => {
+    player.pause();
+    setFrame(0)
   });
 
   d3.select("#next-step-button").on("click", () => {
@@ -111,6 +126,10 @@ function makeGUI() {
     step(-1);
   });
 
+  /* Scrubbing slider allows easy frame navigation */
+  d3.select("#scrubber").on("input", function () { setFrame(parseInt(this.value)) })
+
+  /* Context checkbox switches between token and context modes, shows residual */
   let useContext = d3.select("#use-context").on("change", function () {
     state.useContext = this.checked;
     state.serialize();
@@ -119,38 +138,6 @@ function makeGUI() {
   });
   useContext.property("checked", state.useContext);
   d3.select("#residual-box").classed("hidden", !state.useContext)
-
-  d3.select("#load-experiment-button").on("click", () => {
-    loadData(expTags[state.experiment].tags[state.seed - 1]);
-  });
-
-  let seedSlider = d3.select("#seed").on("input", function () {
-    state.seed = this.value;
-    d3.select("label[for='seed'] .value").text(this.value);
-    // reset();
-  });
-  seedSlider.property("value", state.seed);
-  d3.select("label[for='seed'] .value").text(state.seed);
-
-  let scrubber = d3.select("#scrubber").on("input", function () {
-    state.currentFrameIdx = this.value;
-    // d3.select("label[for='seed'] .value").text(this.value);
-    // reset();
-    currentFrame = frames[state.currentFrameIdx]
-    nn.updateWeights(network, currentFrame.blocks[0].attention, null)
-    lineChart.setCursor(state.currentFrameIdx)
-    updateUI();
-  });
-  scrubber.property("value", state.currentFrameIdx);
-
-  let experiment = d3.select("#experiment").on("change", function () {
-    state.experiment = this.value;
-    state.currentTag = expTags[state.experiment].tags[0];
-    d3.select("#seed").property("max", expTags[state.experiment].tags.length)
-    loadData(state.currentTag);
-    // reset();
-  });
-  experiment.property("value", state.experiment);
 
   // Add scale to the gradient color map.
   let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);
@@ -165,7 +152,6 @@ function makeGUI() {
     .call(xAxis);
 
   // Listen for css-responsive changes and redraw the svg network.
-
   window.addEventListener("resize", () => {
     let newWidth = document.querySelector("#main-part")
       .getBoundingClientRect().width;
@@ -211,19 +197,22 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
       selectedTokenId = nodeId;
       rect.classed("hovered", true);
       nodeGroup.classed("hovered", true);
-      nn.updateWeights(network, currentFrame.blocks[0].attention, parseInt(nodeId))
       updateUI();
     })
     .on("mouseleave", function () {
       selectedTokenId = null;
       rect.classed("hovered", false);
       nodeGroup.classed("hovered", false);
-      nn.updateWeights(network, currentFrame.blocks[0].attention, null)
       updateUI();
     })
     .on("click", function () {
       state.tokenState[nodeId] = !state.tokenState[nodeId];
-      reset()
+      state.context.push(parseInt(nodeId))
+      if (state.context.length > currentConfig.n_ctx) {
+        state.context.shift()
+      }
+      d3.select("#context").text(`${state.context}`)
+      redraw()
     });
 
   // Draw the main rectangle.
@@ -313,7 +302,6 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
 
 }
 
-// Draw network
 function drawNetwork(network: nn.Node[][]): void {
   let svg = d3.select("#svg");
   // Remove all svg elements.
@@ -457,12 +445,22 @@ function drawLink(
 }
 
 function updateUI() {
-  // Update the links visually.
-  updateWeightsUI(network, d3.select("g.core"));
+  state.serialize();
 
+  // Update the links
+  nn.updateWeights(transformer, currentFrame.blocks[0].attention, selectedTokenId)
+  updateWeightsUI(transformer, d3.select("g.core"));
+
+  // Update all heatmaps
   let [blockIdx, headIdx] = nn.parseNodeId(selectedNodeId);
   finalHeatMap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx]);
-  residualHeatMap.updateBackground([[0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4], [1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0]]);
+
+  positionalHeatMap.updateBackground(currentFrame.pos_embed);
+  if (state.useContext) {
+    let residual = new Array(currentConfig.n_ctx).fill(0).map(_ => new Array(currentConfig.d_embed).fill(0))
+    state.context.forEach((tokenIdx, ctxIdx) => residual[ctxIdx] = currentFrame.embedding[tokenIdx])
+    residualHeatMap.updateBackground(residual);
+  }
 
   // Update all attention and output patterns for nodes.
   d3.select("#network").selectAll("div.canvas")
@@ -491,26 +489,32 @@ function updateUI() {
     return Math.log(n).toFixed(2);
   }
 
+
+  d3.select("#experiment").property("value", state.experiment)
+  d3.select("#configuration").property("value", state.currentTag)
+  d3.select("#scrubber").property('value', state.currentFrameIdx)
+  d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
   d3.select("#loss-train").text(logHumanReadable(currentFrame.lossTrain));
   d3.select("#loss-test").text(logHumanReadable(currentFrame.lossTest));
   d3.select("#epoch-number").text(addCommas(zeroPad(currentFrame.epoch)));
 }
 
-
-function step(count: number): void {
-  state.currentFrameIdx += count;
-  if (state.currentFrameIdx >= frames.length) {
-    state.currentFrameIdx = frames.length - 1
-    player.pause();
-  }
-  else if (state.currentFrameIdx < 0) {
-    state.currentFrameIdx = 0
-  }
+function setFrame(frameIdx: number): void {
+  state.currentFrameIdx = frameIdx;
   currentFrame = frames[state.currentFrameIdx]
-  d3.select("#scrubber").property("value", state.currentFrameIdx);
-  nn.updateWeights(network, currentFrame.blocks[0].attention, null)
   lineChart.setCursor(state.currentFrameIdx)
   updateUI();
+}
+
+function step(count: number): void {
+  let frameIdx = state.currentFrameIdx + count;
+  frameIdx = Math.max(0, Math.min(frames.length - 1, frameIdx))
+  if (frameIdx === frames.length - 1) {
+    player.pause();
+  }
+  setFrame(frameIdx)
+  d3.select("#scrubber").property("value", state.currentFrameIdx);
+  d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
 }
 player.onTick(step)
 
@@ -529,49 +533,50 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
   return weights;
 }
 
-function reset() {
-  state.serialize();
-  player.pause();
-  state.currentFrameIdx = 0
-  currentFrame = frames[state.currentFrameIdx]
-  lineChart.setData(frames.map(frame => [frame.lossTest, frame.lossTrain]));
-  lineChart.setCursor(state.currentFrameIdx)
-  redraw()
-};
-
 function redraw() {
+  lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
+  lineChart.setData(frames.map(frame => [frame.lossTest, frame.lossTrain]));
   d3.select("#heatmap").selectAll("div").remove();
   finalHeatMap = new HeatMap(300, currentConfig.n_vocab, currentConfig.n_vocab,
     xDomain, xDomain, d3.select("#heatmap"), { showAxes: true });
+  d3.select("#residual-input").selectAll("div").remove();
+  residualHeatMap =
+    new HeatMap(100, currentConfig.n_ctx, currentConfig.d_embed, xDomain, xDomain, d3.select("#residual-input"));
+  d3.select("#positional-embedding").selectAll("div").remove();
+  positionalHeatMap =
+    new HeatMap(100, currentConfig.n_ctx, currentConfig.d_embed, xDomain, xDomain, d3.select("#positional-embedding"));
   let shape = new Array(currentConfig.n_blocks).fill(currentConfig.n_heads)
-  network = nn.buildNetwork(shape, currentConfig.vocabulary);
-  drawNetwork(network);
+  transformer = nn.buildNetwork(shape, currentConfig.vocabulary);
+  drawNetwork(transformer);
+  setFrame(0);
   updateUI();
 };
 
 function initialLoad() {
+  fetch('./data/tag_glossary.json')
+    .then(response => response.json())
+    .then(data => tagGlossary = data)
+
   fetch('./data/contents.json')
     .then(response => response.json())
-    .then(data => {
-      experiments = data;
-      console.log("Experiment list", experiments)
+    .then(contents => {
       let exp_selector = d3.select("#experiment")
-      for (let exp_name of experiments) {
-        exp_selector.append("option").text(exp_name).attr("value", exp_name)
+      for (let exp_name of contents) {
         fetch(`./data/${exp_name}.json`)
           .then(response => response.json())
           .then(data => {
-            expTags[exp_name] = data
+            experiments[exp_name] = data
+            exp_selector.append("option").text(data.name).attr("value", exp_name)
           })
+          .catch(error => console.log(error))
       }
-      console.log("All Experiment Tags", expTags)
-      d3.select("#seed").property("max", expTags[state.experiment].tags.length)
+      console.log("All Experiments", experiments)
     })
     .catch(error => console.log(error));
 }
 
-function loadData(filetag) {
-  console.log("Loading tag:", filetag)
+function loadData(experiment: string, filetag: string) {
+  console.log("Loading experiment/tag:", experiment, filetag)
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())
     .then(data => {
@@ -585,13 +590,14 @@ function loadData(filetag) {
     .then(data => {
       console.log("Frames", data)
       frames = data;
-      nn.updateWeights(network, currentFrame.blocks[0].attention, null)
-      reset();
+      selectedTokenId = null
+      d3.select("#loader").classed("hidden", true)
+      d3.select("#main-part").classed("hidden", false)
+      redraw();
     })
     .catch(error => console.log(error));
 }
 
 makeGUI();
 initialLoad();
-loadData(state.currentTag);
-reset()
+loadData(state.experiment, state.currentTag);
