@@ -50,6 +50,14 @@ limitations under the License.
           </select>
         </div>
       </div>
+      <div class="control ui-configuration">
+        <label for="configuration">Configuration</label>
+        <div class="select">
+          <select id="configuration">
+            <option value="default">Default</option>
+          </select>
+        </div>
+      </div>
       <div class="timeline-controls">
         <button class="mdl-button mdl-js-button mdl-button--icon ui-resetButton" id="reset-button"
           title="Reset the network">
@@ -81,7 +89,8 @@ limitations under the License.
   </div>
 
   <!-- Main Part -->
-  <div id="main-part" class="l--page">
+  <div id="loader"></div>
+  <div id="main-part" class="l--page hidden">
 
     <!--  Options Column-->
     <div class="column options">
@@ -90,26 +99,12 @@ limitations under the License.
       </h4>
       <div class="ui-dataset">
         <p>Change Visualization Settings</p>
-        <div class="dataset-list">
-          <div class="dataset" title="Circle">
-            <span>Temp</span>
-          </div>
-        </div>
       </div>
       <div>
         <label class="ui-useContext mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-context">
           <input type="checkbox" id="use-context" class="mdl-checkbox__input">
           <span class="mdl-checkbox__label label">Use Context</span>
         </label>
-        <div class="ui-seed">
-          <label for="seed">Configuration Seed:&nbsp;&nbsp;<span class="value">XX</span></label>
-          <p class="slider">
-            <input class="mdl-slider mdl-js-slider" type="range" id="seed" min="1" max="1" step="1">
-          </p>
-        </div>
-        <button class="basic-button" id="load-experiment-button" title="Load Experiment">
-          Load Experiment
-        </button>
       </div>
     </div>
 
@@ -117,6 +112,7 @@ limitations under the License.
     <div class="column features">
       <h4>Token Inputs</h4>
       <p>Choose tokens to use for the input</p>
+      <span class="value" id="context"></span>
       <div id="network">
         <svg id="svg" width="510" height="450">
           <defs>
@@ -185,7 +181,11 @@ limitations under the License.
       <h4>Residual Stream</h4>
       <p>Track changes to the residuals through each layer</p>
     </div>
-    <div id="residual-input" class="column features">
+    <div class="column features">
+      <p>Positional Embedding</p>
+      <div id="positional-embedding"></div>
+      <p>Initial Embedding</p>
+      <div id="residual-input"></div>
     </div>
     <div id="residual-layers" class="column blocks"></div>
     <div id="residual-output" class="column output"></div>

@@ -36,20 +36,19 @@ export class State {
   private static PROPS: Property[] = [
     { name: "experiment", type: Type.STRING },
     { name: "currentTag", type: Type.STRING },
-    { name: "currentFrameIdx", type: Type.NUMBER },
-    { name: "seed", type: Type.NUMBER },
+    // { name: "currentFrameIdx", type: Type.NUMBER },
     { name: "useContext", type: Type.BOOLEAN },
   ];
 
   [key: string]: any;
   experiment: string = "sample";
-  currentTag: string = "1";
+  currentTag: string = "default";
   currentFrameIdx: number = 0;
-  seed: number = 1;
   useContext: boolean = false;
 
   // Should we serialize tokenState?
   tokenState: { [id: string]: boolean } = {};
+  context: number[] = [];
 
   /**
    * Deserializes the state from the url hash.

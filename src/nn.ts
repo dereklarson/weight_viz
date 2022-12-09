@@ -107,18 +107,12 @@ function normColSum(matrix: number[][]) {
 /**
  * Updates the weights of the network
  */
-export function updateWeights(network: Node[][], frame_heads: number[][][], selectedTokenId: number) {
+export function updateWeights(network: Node[][], frame_heads: number[][][], selectedTokenId: string) {
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
     let currentLayer = network[layerIdx];
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      let cols = new Array(10).fill(0);
-      if (selectedTokenId !== null) {
-        cols = frame_heads[i][selectedTokenId]
-      }
-      else {
-        cols = normColSum(frame_heads[i])
-      }
+      let cols = selectedTokenId !== null ? frame_heads[i][parseInt(selectedTokenId)] : normColSum(frame_heads[i])
       // Update the weights coming into this node.
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
