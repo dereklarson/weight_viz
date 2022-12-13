@@ -512,13 +512,57 @@ g.column rect {
 }
 
 .options.column {
-  width: 10%;
+  width: 12%;
+}
+
+/* Experimental params display */
+
+/* Style the tab */
+.tab {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #ccc;
+  background-color: #f1f1f1;
+  width: 158px;
+}
+
+/* Style the buttons that are used to open the tab content */
+.tab button {
+  background-color: inherit;
+  float: left;
+  border: none;
+  cursor: pointer;
+  transition: 0.3s;
+  font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+
+/* Change background color of buttons on hover */
+.tab button:hover {
+  background-color: #ddd;
+}
+
+/* Create an active/current tablink class */
+.tab button.active {
+  background-color: #ccc;
+}
+
+/* Style the tab content */
+.tabcontent {
+  display: none;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-top: none;
 }
 
 #experimental-params {
   background: rgba(158, 158, 158, .1);
   margin-bottom: 10px;
   font-size: smaller;
+  width: 160px;
 }
 
 #experimental-params .header,

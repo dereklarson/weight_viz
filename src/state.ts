@@ -17,6 +17,8 @@ limitations under the License.
  * The data type of a state variable. Used for determining the
  * (de)serialization method.
  */
+
+
 export enum Type {
   BOOLEAN,
   NUMBER,
@@ -36,6 +38,7 @@ export class State {
   private static PROPS: Property[] = [
     { name: "experiment", type: Type.STRING },
     { name: "currentTag", type: Type.STRING },
+    { name: "currentTab", type: Type.STRING },
     // { name: "currentFrameIdx", type: Type.NUMBER },
     { name: "useContext", type: Type.BOOLEAN },
   ];
@@ -43,6 +46,7 @@ export class State {
   [key: string]: any;
   experiment: string = "sample";
   currentTag: string = "default";
+  currentTab: string = "model";
   currentFrameIdx: number = 0;
   useContext: boolean = false;
 

@@ -95,8 +95,26 @@ limitations under the License.
     <!--  Options Column-->
     <div class="column options">
       <h4>
-        <span>Experimental Parameters</span>
+        <span>Options</span>
       </h4>
+      <div class="ui-settings">
+        <p>Change Visualization Settings</p>
+      </div>
+      <div>
+        <label class="ui-useContext mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-context">
+          <input type="checkbox" id="use-context" class="mdl-checkbox__input">
+          <span class="mdl-checkbox__label label">Use Context</span>
+        </label>
+      </div>
+
+      <h4 style="margin-top:20px">
+        <span>Parameters</span>
+      </h4>
+      <div class="tab">
+        <button class="tablinks" id="modelTab">Model</button>
+        <button class="tablinks" id="dataTab">Data</button>
+        <button class="tablinks" id="trainTab">Train</button>
+      </div>
       <table id="experimental-params" class="mdl-data-table mdl-js-data-table">
         <thead>
           <tr>
@@ -111,18 +129,6 @@ limitations under the License.
           </tr>
         </tbody>
       </table>
-      <h4>
-        <span>Options</span>
-      </h4>
-      <div class="ui-settings">
-        <p>Change Visualization Settings</p>
-      </div>
-      <div>
-        <label class="ui-useContext mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-context">
-          <input type="checkbox" id="use-context" class="mdl-checkbox__input">
-          <span class="mdl-checkbox__label label">Use Context</span>
-        </label>
-      </div>
     </div>
 
     <!-- Token Inputs Column -->

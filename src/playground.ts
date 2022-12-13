@@ -45,33 +45,12 @@ function parseTag(tag: string) {
   return terms.join(", ")
 }
 
+let transformer: nn.Node[][] = null;
 let experiments = { sample: { name: "Sample", tags: ["default"] } }
-// let currentConfig = {}
-// let currentFrame = {}
-// let frames = {}
-let currentConfig = {
-  n_ctx: 2,
-  d_embed: 8,
-  n_heads: 4,
-  n_blocks: 1,
-  n_vocab: 10,
-  vocabulary: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
-}
-let currentFrame = {
-  epoch: 0,
-  lossTest: 1,
-  lossTrain: 1,
-  embedding: new Array(currentConfig.n_vocab).fill(0).map(_ => new Array(8).fill(0)),
-  pos_embed: new Array(currentConfig.n_ctx).fill(0).map(_ => new Array(8).fill(0)),
-  blocks: [
-    {
-      attention: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0))),
-      output: new Array(4).fill(0).map(_ => new Array(10).fill(0).map(_ => new Array(10).fill(0))),
-      mlp: []
-    }
-  ]
-}
-let frames = [currentFrame];
+let currentConfig: nn.TransformerConfig
+let currentFrame: nn.Frame
+let frames: nn.Frame[]
+
 let xDomain: [number, number] = [-6, 6];
 let lineChart;
 let residualHeatMap;
@@ -87,18 +66,22 @@ let colorScale = d3.scale.linear<string, number>()
   .domain([-1, 0, 1])
   .range(["#f59322", "#e8eaeb", "#0877bd"])
   .clamp(true);
-let transformer: nn.Node[][] = null;
-let ignoreKeys = ["name", "operation", "vocabulary", "n_vocab"]
 
 function titleCase(str: string) {
   return str.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")
+}
+
+let paramKeys = {
+  data: ["seed", "training_fraction", "value_range", "dist_style", "value_count"],
+  model: ["d_embed", "d_head", "d_mlp", "n_ctx", "n_heads", "n_blocks"],
+  train: ["learning_rate", "weight_decay", "n_epochs"],
 }
 
 function setExperimentalParams() {
   let expParams = d3.select("#experimental-params").select("tbody")
   expParams.selectAll("tr").remove()
   for (var key in currentConfig) {
-    if (ignoreKeys.includes(key)) continue;
+    if (!paramKeys[state.currentTab].includes(key)) continue;
     var row = expParams.append("tr").classed("row", true)
     row.append("td").classed("datum", true).text(titleCase(key))
     row.append("td").classed("datum", true).text(currentConfig[key])
@@ -122,6 +105,17 @@ function makeGUI() {
     })
     loadData(state.experiment, state.currentTag);
   });
+
+  function setTab(tabName: string) {
+    d3.select(`#${state.currentTab}Tab`).classed("active", false);
+    state.currentTab = tabName;
+    d3.select(`#${tabName}Tab`).classed("active", true);
+    setExperimentalParams()
+  }
+
+  d3.select("#modelTab").on("click", () => setTab("model"));
+  d3.select("#dataTab").on("click", () => setTab("data"));
+  d3.select("#trainTab").on("click", () => setTab("train"));
 
   /* The Player controls: play/pause, reset, and step left or right */
   d3.select("#play-pause-button").on("click", () => player.playOrPause());
@@ -510,6 +504,7 @@ function updateUI() {
 
 
   d3.select("#experiment").property("value", state.experiment)
+  d3.select(`#${state.currentTab}Tab`).classed("active", true);
   d3.select("#configuration").property("value", state.currentTag)
   d3.select("#scrubber").property('value', state.currentFrameIdx)
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))

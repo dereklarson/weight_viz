@@ -12,6 +12,31 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+export interface TransformerConfig {
+  n_ctx: number,
+  d_embed: number,
+  n_heads: number,
+  n_blocks: number,
+  n_vocab: number,
+  vocabulary: string[],
+}
+
+type Matrix = number[][];
+
+export interface TransformerBlock {
+  attention: Matrix[],
+  output: Matrix[],
+  mlp: Matrix,
+}
+
+export interface Frame {
+  epoch: 0,
+  lossTest: 1,
+  lossTrain: 1,
+  embedding: Matrix,
+  pos_embed: Matrix,
+  blocks: TransformerBlock[],
+}
 
 /**
  * A node in a neural network.
