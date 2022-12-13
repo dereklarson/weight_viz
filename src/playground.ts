@@ -20,8 +20,8 @@ import * as nn from "./nn";
 import { Player } from "./player";
 import { State } from "./state";
 
-const TOKEN_SIZE = 24;
-const RECT_SIZE = 80;
+const TOKEN_SIZE = 20;
+const RECT_SIZE = 60;
 
 let mainWidth;
 let player = new Player();
@@ -46,6 +46,9 @@ function parseTag(tag: string) {
 }
 
 let experiments = { sample: { name: "Sample", tags: ["default"] } }
+// let currentConfig = {}
+// let currentFrame = {}
+// let frames = {}
 let currentConfig = {
   n_ctx: 2,
   d_embed: 8,
@@ -85,6 +88,22 @@ let colorScale = d3.scale.linear<string, number>()
   .range(["#f59322", "#e8eaeb", "#0877bd"])
   .clamp(true);
 let transformer: nn.Node[][] = null;
+let ignoreKeys = ["name", "operation", "vocabulary", "n_vocab"]
+
+function titleCase(str: string) {
+  return str.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")
+}
+
+function setExperimentalParams() {
+  let expParams = d3.select("#experimental-params").select("tbody")
+  expParams.selectAll("tr").remove()
+  for (var key in currentConfig) {
+    if (ignoreKeys.includes(key)) continue;
+    var row = expParams.append("tr").classed("row", true)
+    row.append("td").classed("datum", true).text(titleCase(key))
+    row.append("td").classed("datum", true).text(currentConfig[key])
+  }
+}
 
 function makeGUI() {
   /* Two dropdown menus to select the Experiment and Configuration */
@@ -292,7 +311,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
     })
     .style({
       position: "absolute",
-      left: `${x + RECT_SIZE + 3}px`,
+      left: `${x + RECT_SIZE + 8}px`,
       top: `${y + 3}px`
     })
   let outputHeatMap = new HeatMap(RECT_SIZE, currentConfig.n_vocab, currentConfig.n_vocab,
@@ -409,7 +428,7 @@ function drawLink(
   let line = container.insert("path", ":first-child");
   let source = node2coord[input.source.id];
   let dest = node2coord[input.dest.id];
-  let dimension = RECT_SIZE * 2;
+  let dimension = RECT_SIZE * 2 + 10;
   if (currentConfig.vocabulary.includes(input.source.id)) {
     dimension = TOKEN_SIZE;
   }
@@ -582,6 +601,7 @@ function loadData(experiment: string, filetag: string) {
     .then(data => {
       console.log(`Experiment params for '${filetag}'`, data)
       currentConfig = data;
+      setExperimentalParams()
     })
     .catch(error => console.log(error));
 

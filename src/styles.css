@@ -515,21 +515,18 @@ g.column rect {
   width: 10%;
 }
 
-.options.column .dataset-list {
-  margin: 20px 0 10px;
-  overflow: hidden;
+#experimental-params {
+  background: rgba(158, 158, 158, .1);
+  margin-bottom: 10px;
+  font-size: smaller;
 }
 
-.options.column .dataset {
-  position: relative;
-  float: left;
-  width: 34px;
-  height: 34px;
-  margin: 0 14px 14px 0;
-}
-
-.options.column .dataset:nth-of-type(2n) {
-  margin-right: 0;
+#experimental-params .header,
+#experimental-params .row,
+#experimental-params .datum {
+  padding: 8px;
+  height: auto;
+  text-align: justify;
 }
 
 #main-part .basic-button {
