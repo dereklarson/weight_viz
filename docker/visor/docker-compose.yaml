@@ -1,0 +1,13 @@
+version: "3.7"
+services:
+  visor:
+    build:
+      context: ${HOME}/${REPOS}/${REPO}
+      dockerfile: docker/${APP}/Dockerfile
+    image: ${APP}:latest
+    command:
+      - "npx"
+      - "serve"
+      - "dist"
+    ports:
+      - "${VISOR_PORT}:${VISOR_PORT}"
