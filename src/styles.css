@@ -745,9 +745,9 @@ g.column rect {
 
 #network .canvas canvas {
   position: absolute;
-  top: -2px;
-  left: -2px;
-  border: 2px solid black;
+  top: -1px;
+  left: -1px;
+  border: 1px solid black;
   border-radius: 3px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
@@ -763,6 +763,7 @@ g.column rect {
   left: 0;
 }
 
+#network .canvas.active canvas,
 #network .canvas.hovered canvas {
   opacity: 1.0;
   border: 2px solid #666;

@@ -62,7 +62,7 @@ let gc: GlobalComponents = {
 
 // Supplementary state variables that won't be serialized
 let selectedTokenId: string = null;
-let selectedNodeId: string = "0_0";
+let inspectedNodeId: string = "0_0";
 
 // State contains variables we can load from the URL
 let state = State.deserializeState();
@@ -219,6 +219,23 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
   let x = cx - dimension / 2;
   let y = cy - dimension / 2;
 
+
+  function makeClickCallback(canvas, _nodeId: string) {
+    return function () {
+      state.selectedNodeId = _nodeId === state.selectedNodeId ? null : _nodeId
+      d3.select("#network").selectAll("div.canvas").classed("active", false)
+      if (state.selectedNodeId) canvas.classed("active", true);
+    }
+  }
+
+  function makeHoverCallback(canvas, _nodeId: string, entering: boolean) {
+    return function () {
+      inspectedNodeId = entering ? _nodeId : state.selectedNodeId || _nodeId;
+      canvas.classed("hovered", entering);
+      updateUI()
+    }
+  }
+
   let nodeGroup = container.append("g")
     .attr({
       "class": "node",
@@ -271,6 +288,8 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
 function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.Node) {
   let x = cx - RECT_SIZE;
   let y = cy - RECT_SIZE / 2;
+  let rows = gd.currentConfig.n_vocab;
+  let cols = rows;
 
   let nodeGroup = container.append("g")
     .attr({
@@ -280,18 +299,36 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
     });
 
   // Draw the main rectangle.
-  nodeGroup.append("rect")
-    .attr({
-      x: 0,
-      y: 0,
-      width: RECT_SIZE * 2,
-      height: RECT_SIZE,
-    });
+  // nodeGroup.append("rect")
+  //   .attr({
+  //     x: 0,
+  //     y: 0,
+  //     width: RECT_SIZE * 2,
+  //     height: RECT_SIZE,
+  //   });
 
-  // Draw the node's canvas.
-  let attn_div = d3.select("#network").insert("div", ":first-child")
+  function makeClickCallback(canvas, _nodeId: string) {
+    return function () {
+      state.selectedNodeId = _nodeId === state.selectedNodeId ? null : _nodeId
+      d3.select("#network").selectAll("div.canvas").classed("active", false)
+      if (state.selectedNodeId) canvas.classed("active", true);
+    }
+  }
+
+  function makeHoverCallback(canvas, _nodeId: string, entering: boolean) {
+    return function () {
+      inspectedNodeId = entering ? _nodeId : state.selectedNodeId || _nodeId;
+      canvas.classed("hovered", entering);
+      updateUI()
+    }
+  }
+
+  // Draw the node's attention and output canvases.
+  let attnId = nodeId + "_0";
+  let attn_canvas = d3.select("#network").insert("div", ":first-child")
+  attn_canvas
     .attr({
-      "id": `canvas-${nodeId}`,
+      "id": `canvas-${attnId}`,
       "class": "canvas"
     })
     .style({
@@ -299,26 +336,17 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + 3}px`,
       top: `${y + 3}px`
     })
-    .on("mouseenter", function () {
-      selectedNodeId = nodeId;
-      attn_div.classed("hovered", true);
-      nodeGroup.classed("hovered", true);
-      let [blockIdx, headIdx] = nn.parseNodeId(nodeId);
-      gc.finalHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx].attention[headIdx]);
-    })
-    .on("mouseleave", function () {
-      attn_div.classed("hovered", false);
-      nodeGroup.classed("hovered", false);
-      // heatMap.updateBackground(boundary[nn.getOutputNode(network).id]);
-    });
-  let attnHeatMap = new HeatMap(RECT_SIZE,
-    gd.currentConfig.n_vocab, gd.currentConfig.n_vocab, attn_div, { noSvg: true });
-  attn_div.datum({ heatmap: attnHeatMap, id: nodeId });
+    .on("click", makeClickCallback(attn_canvas, attnId))
+    .on("mouseenter", makeHoverCallback(attn_canvas, attnId, true))
+    .on("mouseleave", makeHoverCallback(attn_canvas, attnId, false))
+  let attnHeatMap = new HeatMap(RECT_SIZE, rows, cols, attn_canvas, { noSvg: true });
+  attn_canvas.datum({ heatmap: attnHeatMap, id: attnId });
 
-
-  let output_div = d3.select("#network").insert("div", ":first-child")
+  var outputId = nodeId + "_1"
+  let output_canvas = d3.select("#network").insert("div", ":first-child")
+  output_canvas
     .attr({
-      "id": `canvas-${nodeId}-out`,
+      "id": `canvas-${outputId}`,
       "class": "canvas"
     })
     .style({
@@ -326,11 +354,11 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + RECT_SIZE + 8}px`,
       top: `${y + 3}px`
     })
-  let outputHeatMap = new HeatMap(RECT_SIZE, gd.currentConfig.n_vocab, gd.currentConfig.n_vocab,
-    output_div, { noSvg: true });
-  output_div.datum({ heatmap: outputHeatMap, id: `out_${nodeId}` });
-
-
+    .on("click", makeClickCallback(output_canvas, outputId))
+    .on("mouseenter", makeHoverCallback(output_canvas, outputId, true))
+    .on("mouseleave", makeHoverCallback(output_canvas, outputId, false))
+  let outputHeatMap = new HeatMap(RECT_SIZE, rows, cols, output_canvas, { noSvg: true });
+  output_canvas.datum({ heatmap: outputHeatMap, id: outputId });
 }
 
 function drawNetwork(network: nn.Node[][]): void {
@@ -482,9 +510,10 @@ function updateUI() {
   nn.updateWeights(transformer, gd.currentFrame.blocks[0].attention, selectedTokenId)
   updateWeightsUI(transformer, d3.select("g.core"));
 
-  // Update all heatmaps
-  let [blockIdx, headIdx] = nn.parseNodeId(selectedNodeId);
-  gc.finalHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx].attention[headIdx]);
+  /** Update all heatmaps **/
+  let [blockIdx, headIdx, isOut] = nn.parseNodeId(inspectedNodeId);
+  var blockKey = isOut ? "output" : "attention"
+  gc.finalHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
 
   gc.positionalHeatMap.updateBackground(gd.currentFrame.pos_embed);
   if (state.useContext) {
@@ -496,14 +525,9 @@ function updateUI() {
   // Update all attention and output patterns for nodes.
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
-      if (data.id.startsWith("out_")) {
-        let [blockIdx, headIdx] = nn.parseNodeId(data.id.slice(4));
-        data.heatmap.updateBackground(gd.currentFrame.blocks[blockIdx].output[headIdx])
-      }
-      else {
-        let [blockIdx, headIdx] = nn.parseNodeId(data.id);
-        data.heatmap.updateBackground(gd.currentFrame.blocks[blockIdx].attention[headIdx])
-      }
+      var [blockIdx, headIdx, isOut] = nn.parseNodeId(data.id);
+      var blockKey = isOut ? "output" : "attention"
+      data.heatmap.updateBackground(gd.currentFrame.blocks[blockIdx][blockKey][headIdx])
     });
 
 

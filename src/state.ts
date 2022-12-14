@@ -52,6 +52,7 @@ export class State {
 
   // Should we serialize tokenState?
   tokenState: { [id: string]: boolean } = {};
+  selectedNodeId: string = null;
   context: number[] = [];
 
   /**

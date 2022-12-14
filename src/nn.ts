@@ -165,7 +165,7 @@ export function forEachNode(network: Node[][], ignoreInputs: boolean,
 }
 
 export function parseNodeId(nodeId: string) {
-  return [parseInt(nodeId.split("_")[0]), parseInt(nodeId.split("_")[1])]
+  return nodeId.split("_").map(id => parseInt(id))
 }
 
 /** Returns the output node in the network. */
