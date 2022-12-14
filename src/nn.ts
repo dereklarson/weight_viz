@@ -104,12 +104,12 @@ export function buildNetwork(blocks: number[], vocabulary: string[]): Node[][] {
   let network: Node[][] = [vocabulary.map(token => new Node(token))];
   for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
     // let isOutputblock = blockIdx === numBlocks - 1;
-    let currentLayer: Node[] = [];
-    network.push(currentLayer);
+    let currentBlock: Node[] = [];
+    network.push(currentBlock);
     let numNodes = blocks[blockIdx];
     for (let i = 0; i < numNodes; i++) {
       let node = new Node(`${blockIdx}_${i}`)
-      currentLayer.push(node);
+      currentBlock.push(node);
       // Add links from nodes in the previous layer to this node.
       for (let j = 0; j < network[blockIdx].length; j++) {
         let prevNode = network[blockIdx][j];
@@ -132,12 +132,15 @@ function normColSum(matrix: number[][]) {
 /**
  * Updates the weights of the network
  */
-export function updateWeights(network: Node[][], frame_heads: number[][][], selectedTokenId: string) {
-  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
-    let currentLayer = network[layerIdx];
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
+export function updateWeights(network: Node[][], frame_heads: number[][][],
+  selectedTokenId: string, inspectedNodeId: string) {
+  var [inspBlockIdx, inspHeadIdx, inspIsOut] = parseNodeId(inspectedNodeId)
+  for (let blockIdx = 1; blockIdx < network.length; blockIdx++) {
+    let currentBlock = network[blockIdx];
+    for (let i = 0; i < currentBlock.length; i++) {
+      let node = currentBlock[i];
       let cols = selectedTokenId !== null ? frame_heads[i][parseInt(selectedTokenId)] : normColSum(frame_heads[i])
+      if (blockIdx - 1 === inspBlockIdx && inspHeadIdx !== i) cols = Array(cols.length).fill(0)
       // Update the weights coming into this node.
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
@@ -153,18 +156,19 @@ export function updateWeights(network: Node[][], frame_heads: number[][][], sele
 /** Iterates over every node in the network/ */
 export function forEachNode(network: Node[][], ignoreInputs: boolean,
   accessor: (node: Node) => any) {
-  for (let layerIdx = ignoreInputs ? 1 : 0;
-    layerIdx < network.length;
-    layerIdx++) {
-    let currentLayer = network[layerIdx];
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
+  for (let blockIdx = ignoreInputs ? 1 : 0;
+    blockIdx < network.length;
+    blockIdx++) {
+    let currentBlock = network[blockIdx];
+    for (let i = 0; i < currentBlock.length; i++) {
+      let node = currentBlock[i];
       accessor(node);
     }
   }
 }
 
 export function parseNodeId(nodeId: string) {
+  if (nodeId === null) return [null, null]
   return nodeId.split("_").map(id => parseInt(id))
 }
 

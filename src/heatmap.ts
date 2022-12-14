@@ -85,8 +85,6 @@ export class HeatMap {
       .style("width", (width - 2 * padding) + "px")
       .style("height", (height - 2 * padding) + "px")
       .style("position", "absolute")
-      .style("top", `${padding}px`)
-      .style("left", `${padding}px`)
       // 'image-rendering: pixelated' avoids blurring between datapoints on scaling
       .style("image-rendering", "pixelated");
 
@@ -107,6 +105,10 @@ export class HeatMap {
     }
 
     if (this.settings.showAxes) {
+      // For the inspection heatmap, we need the offset provided by padding
+      this.canvas
+        .style("top", `${padding}px`)
+        .style("left", `${padding}px`)
       var xDim = width - 2 * padding;
       var yDim = height - 2 * padding;
       var xScale = d3.scale.linear()
@@ -119,7 +121,7 @@ export class HeatMap {
 
       var yScale = d3.scale.linear()
         .domain([0, nRow - 1])
-        .range([xDim * (nRow - 1) / nRow, 0]);
+        .range([0, xDim * (nRow - 1) / nRow]);
 
       var yAxis = d3.svg.axis()
         .scale(yScale)
