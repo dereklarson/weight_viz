@@ -4,29 +4,37 @@
   "description": "",
   "private": true,
   "scripts": {
-    "clean": "rimraf dist",
-    "start": "npm run serve-watch",
-    "prep": "cp node_modules/material-design-lite/material.min.js dist/lib.js",
-    "build-css": "cat node_modules/material-design-lite/material.min.css src/styles.css > dist/bundle.css",
-    "build-html": "cp src/index.html dist",
-    "build-js": "browserify src/playground.ts -p [tsify] | uglifyjs -c > dist/bundle.js",
-    "build": "npm run build-js && npm run build-css && npm run build-html",
-    "build-old": "npm run prep && npm run build-js && npm run build-css && npm run build-html",
-    "watch": "watch 'npm run build' src/",
-    "serve": "npx serve dist/"
+    "clean": "rimraf dist && mkdir dist",
+    "css": "cat node_modules/material-design-lite/material.min.css src/styles.css > dist/bundle.css",
+    "data": "cp -r data dist/data",
+    "img": "cp assets/* dist/",
+    "lib": "cp node_modules/material-design-lite/material.min.js dist/lib.js",
+    "build-dev": "webpack --config webpack.config.js",
+    "build": "NODE_ENV=production webpack --config webpack.config.js",
+    "rebuild": "run-s clean css data img lib build-dev",
+    "serve": "webpack serve --open"
   },
   "devDependencies": {
     "@types/d3": "^3.5.34",
+    "@webpack-cli/generators": "^3.0.1",
+    "css-loader": "^6.7.1",
+    "html-webpack-plugin": "^5.5.0",
+    "mini-css-extract-plugin": "^2.6.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.6.2",
     "rimraf": "2.5.4",
     "serve": "^14.1.2",
-    "tsify": "^4.0.0",
-    "typescript": "^2.9",
-    "uglify-js": "^2.8.29",
-    "watch": "^0.13.0"
+    "style-loader": "^3.3.1",
+    "ts-loader": "^9.4.2",
+    "typescript": "^4.9.4",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.1",
+    "webpack-dev-server": "^4.9.0"
   },
   "dependencies": {
     "d3": "^3.5.16",
     "es2015": "^0.0.0",
-    "material-design-lite": "^1.3.0"
+    "material-design-lite": "^1.3.0",
+    "mathjs": "^11.5.0"
   }
 }
