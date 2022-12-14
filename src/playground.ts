@@ -23,49 +23,61 @@ import { State } from "./state";
 const TOKEN_SIZE = 20;
 const RECT_SIZE = 60;
 
-let mainWidth;
-let player = new Player();
+/** Define a global Objects for clear organization of variables
+ *  gs -- Global settings, 
+ *  gc -- Global components: heatmaps, Player controls
+ *  gd -- Global data: the loaded experiment data 
+*/
+interface GlobalData {
+  experiments: { [key: string]: { name: string, tags: string[] } },
+  tagGlossary: { [key: string]: string },
+  frames: nn.WFrame[],
+  currentConfig: nn.TransformerConfig,
+  currentFrame: nn.WFrame,
+}
 
-// State contains variables we can load from the URL
-let state = State.deserializeState();
+let gd: GlobalData = {
+  experiments: { sample: { name: "Sample", tags: ["default"] } },
+  tagGlossary: undefined,
+  frames: undefined,
+  currentConfig: undefined,
+  currentFrame: undefined,
+}
+
+interface GlobalComponents {
+  player: Player,
+  lineChart: LineChart,
+  residualHeatMap: HeatMap,
+  positionalHeatMap: HeatMap,
+  finalHeatMap: HeatMap,
+}
+
+let gc: GlobalComponents = {
+  player: new Player(),
+  lineChart: undefined,
+  residualHeatMap: undefined,
+  positionalHeatMap: undefined,
+  finalHeatMap: undefined,
+}
 
 // Supplementary state variables that won't be serialized
 let selectedTokenId: string = null;
 let selectedNodeId: string = "0_0";
 
-/*** Variables that contain loaded data ***/
+// State contains variables we can load from the URL
+let state = State.deserializeState();
+
+let transformer: nn.Node[][] = null;
+
 // A supplied glossary for parameter abbrevations
-let tagGlossary: { [key: string]: string } = {}
 function parseTag(tag: string) {
   let terms = []
   for (let pair of tag.split("_")) {
     let [key, val] = pair.split("@")
-    terms.push(`${tagGlossary[key]}=${val}`)
+    terms.push(`${gd.tagGlossary[key]}=${val}`)
   }
   return terms.join(", ")
 }
-
-let transformer: nn.Node[][] = null;
-let experiments = { sample: { name: "Sample", tags: ["default"] } }
-let currentConfig: nn.TransformerConfig
-let currentFrame: nn.Frame
-let frames: nn.Frame[]
-
-let xDomain: [number, number] = [-6, 6];
-let lineChart;
-let residualHeatMap;
-let positionalHeatMap;
-let finalHeatMap =
-  new HeatMap(300, 10, 10, xDomain, xDomain, d3.select("#heatmap"),
-    { showAxes: true });
-let linkWidthScale = d3.scale.linear()
-  .domain([0, 5])
-  .range([1, 10])
-  .clamp(true);
-let colorScale = d3.scale.linear<string, number>()
-  .domain([-1, 0, 1])
-  .range(["#f59322", "#e8eaeb", "#0877bd"])
-  .clamp(true);
 
 function titleCase(str: string) {
   return str.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")
@@ -80,11 +92,11 @@ let paramKeys = {
 function setExperimentalParams() {
   let expParams = d3.select("#experimental-params").select("tbody")
   expParams.selectAll("tr").remove()
-  for (var key in currentConfig) {
+  for (var key in gd.currentConfig) {
     if (!paramKeys[state.currentTab].includes(key)) continue;
     var row = expParams.append("tr").classed("row", true)
     row.append("td").classed("datum", true).text(titleCase(key))
-    row.append("td").classed("datum", true).text(currentConfig[key])
+    row.append("td").classed("datum", true).text(gd.currentConfig[key])
   }
 }
 
@@ -97,9 +109,9 @@ function makeGUI() {
 
   d3.select("#experiment").on("change", function () {
     state.experiment = this.value;
-    state.currentTag = experiments[state.experiment].tags[0];
+    state.currentTag = gd.experiments[state.experiment].tags[0];
     configuration.selectAll("option").remove()
-    experiments[state.experiment].tags.forEach(tag => {
+    gd.experiments[state.experiment].tags.forEach(tag => {
       let name = tag === "default" ? "Default" : parseTag(tag)
       configuration.append("option").text(name).attr("value", tag)
     })
@@ -118,24 +130,24 @@ function makeGUI() {
   d3.select("#trainTab").on("click", () => setTab("train"));
 
   /* The Player controls: play/pause, reset, and step left or right */
-  d3.select("#play-pause-button").on("click", () => player.playOrPause());
+  d3.select("#play-pause-button").on("click", () => gc.player.playOrPause());
 
-  player.onPlayPause(isPlaying => {
+  gc.player.onPlayPause(isPlaying => {
     d3.select("#play-pause-button").classed("playing", isPlaying);
   });
 
   d3.select("#reset-button").on("click", () => {
-    player.pause();
+    gc.player.pause();
     setFrame(0)
   });
 
   d3.select("#next-step-button").on("click", () => {
-    player.pause();
+    gc.player.pause();
     step(1);
   });
 
   d3.select("#prev-step-button").on("click", () => {
-    player.pause();
+    gc.player.pause();
     step(-1);
   });
 
@@ -166,15 +178,22 @@ function makeGUI() {
 
   // Listen for css-responsive changes and redraw the svg network.
   window.addEventListener("resize", () => {
-    let newWidth = document.querySelector("#main-part")
-      .getBoundingClientRect().width;
-    if (newWidth !== mainWidth) {
-      mainWidth = newWidth;
-    }
+    drawNetwork(transformer)
+    updateUI()
   });
 }
 
 function updateWeightsUI(network: nn.Node[][], container) {
+  const linkWidthScale = d3.scale.linear()
+    .domain([0, 5])
+    .range([1, 10])
+    .clamp(true);
+
+  const colorScale = d3.scale.linear<string, number>()
+    .domain([-1, 0, 1])
+    .range(["#f59322", "#e8eaeb", "#0877bd"])
+    .clamp(true);
+
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
     let currentLayer = network[layerIdx];
     // Update all the nodes in this layer.
@@ -221,7 +240,7 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
     .on("click", function () {
       state.tokenState[nodeId] = !state.tokenState[nodeId];
       state.context.push(parseInt(nodeId))
-      if (state.context.length > currentConfig.n_ctx) {
+      if (state.context.length > gd.currentConfig.n_ctx) {
         state.context.shift()
       }
       d3.select("#context").text(`${state.context}`)
@@ -285,7 +304,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       attn_div.classed("hovered", true);
       nodeGroup.classed("hovered", true);
       let [blockIdx, headIdx] = nn.parseNodeId(nodeId);
-      finalHeatMap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx]);
+      gc.finalHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx].attention[headIdx]);
     })
     .on("mouseleave", function () {
       attn_div.classed("hovered", false);
@@ -293,8 +312,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       // heatMap.updateBackground(boundary[nn.getOutputNode(network).id]);
     });
   let attnHeatMap = new HeatMap(RECT_SIZE,
-    currentConfig.n_vocab, currentConfig.n_vocab,
-    xDomain, xDomain, attn_div, { noSvg: true });
+    gd.currentConfig.n_vocab, gd.currentConfig.n_vocab, attn_div, { noSvg: true });
   attn_div.datum({ heatmap: attnHeatMap, id: nodeId });
 
 
@@ -308,8 +326,8 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + RECT_SIZE + 8}px`,
       top: `${y + 3}px`
     })
-  let outputHeatMap = new HeatMap(RECT_SIZE, currentConfig.n_vocab, currentConfig.n_vocab,
-    xDomain, xDomain, output_div, { noSvg: true });
+  let outputHeatMap = new HeatMap(RECT_SIZE, gd.currentConfig.n_vocab, gd.currentConfig.n_vocab,
+    output_div, { noSvg: true });
   output_div.datum({ heatmap: outputHeatMap, id: `out_${nodeId}` });
 
 
@@ -345,8 +363,8 @@ function drawNetwork(network: nn.Node[][]): void {
 
   // Draw the input layer.
   let cx = TOKEN_SIZE / 2 + 50;
-  let maxY = nodeIndexScale(currentConfig.vocabulary.length, TOKEN_SIZE);
-  currentConfig.vocabulary.forEach((nodeId, i) => {
+  let maxY = nodeIndexScale(gd.currentConfig.vocabulary.length, TOKEN_SIZE);
+  gd.currentConfig.vocabulary.forEach((nodeId, i) => {
     let cy = nodeIndexScale(i, TOKEN_SIZE) + TOKEN_SIZE / 2;
     node2coord[nodeId] = { cx, cy };
     drawTokenNode(cx, cy, nodeId, container);
@@ -423,7 +441,7 @@ function drawLink(
   let source = node2coord[input.source.id];
   let dest = node2coord[input.dest.id];
   let dimension = RECT_SIZE * 2 + 10;
-  if (currentConfig.vocabulary.includes(input.source.id)) {
+  if (gd.currentConfig.vocabulary.includes(input.source.id)) {
     dimension = TOKEN_SIZE;
   }
   let datum = {
@@ -461,18 +479,18 @@ function updateUI() {
   state.serialize();
 
   // Update the links
-  nn.updateWeights(transformer, currentFrame.blocks[0].attention, selectedTokenId)
+  nn.updateWeights(transformer, gd.currentFrame.blocks[0].attention, selectedTokenId)
   updateWeightsUI(transformer, d3.select("g.core"));
 
   // Update all heatmaps
   let [blockIdx, headIdx] = nn.parseNodeId(selectedNodeId);
-  finalHeatMap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx]);
+  gc.finalHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx].attention[headIdx]);
 
-  positionalHeatMap.updateBackground(currentFrame.pos_embed);
+  gc.positionalHeatMap.updateBackground(gd.currentFrame.pos_embed);
   if (state.useContext) {
-    let residual = new Array(currentConfig.n_ctx).fill(0).map(_ => new Array(currentConfig.d_embed).fill(0))
-    state.context.forEach((tokenIdx, ctxIdx) => residual[ctxIdx] = currentFrame.embedding[tokenIdx])
-    residualHeatMap.updateBackground(residual);
+    let residual = new Array(gd.currentConfig.n_ctx).fill(0).map(_ => new Array(gd.currentConfig.d_embed).fill(0))
+    state.context.forEach((tokenIdx, ctxIdx) => residual[ctxIdx] = gd.currentFrame.embedding[tokenIdx])
+    gc.residualHeatMap.updateBackground(residual);
   }
 
   // Update all attention and output patterns for nodes.
@@ -480,11 +498,11 @@ function updateUI() {
     .each(function (data: { heatmap: HeatMap, id: string }) {
       if (data.id.startsWith("out_")) {
         let [blockIdx, headIdx] = nn.parseNodeId(data.id.slice(4));
-        data.heatmap.updateBackground(currentFrame.blocks[blockIdx].output[headIdx])
+        data.heatmap.updateBackground(gd.currentFrame.blocks[blockIdx].output[headIdx])
       }
       else {
         let [blockIdx, headIdx] = nn.parseNodeId(data.id);
-        data.heatmap.updateBackground(currentFrame.blocks[blockIdx].attention[headIdx])
+        data.heatmap.updateBackground(gd.currentFrame.blocks[blockIdx].attention[headIdx])
       }
     });
 
@@ -508,29 +526,29 @@ function updateUI() {
   d3.select("#configuration").property("value", state.currentTag)
   d3.select("#scrubber").property('value', state.currentFrameIdx)
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
-  d3.select("#loss-train").text(logHumanReadable(currentFrame.lossTrain));
-  d3.select("#loss-test").text(logHumanReadable(currentFrame.lossTest));
-  d3.select("#epoch-number").text(addCommas(zeroPad(currentFrame.epoch)));
+  d3.select("#loss-train").text(logHumanReadable(gd.currentFrame.lossTrain));
+  d3.select("#loss-test").text(logHumanReadable(gd.currentFrame.lossTest));
+  d3.select("#epoch-number").text(addCommas(zeroPad(gd.currentFrame.epoch)));
 }
 
 function setFrame(frameIdx: number): void {
   state.currentFrameIdx = frameIdx;
-  currentFrame = frames[state.currentFrameIdx]
-  lineChart.setCursor(state.currentFrameIdx)
+  gd.currentFrame = gd.frames[state.currentFrameIdx]
+  gc.lineChart.setCursor(state.currentFrameIdx)
   updateUI();
 }
 
 function step(count: number): void {
   let frameIdx = state.currentFrameIdx + count;
-  frameIdx = Math.max(0, Math.min(frames.length - 1, frameIdx))
-  if (frameIdx === frames.length - 1) {
-    player.pause();
+  frameIdx = Math.max(0, Math.min(gd.frames.length - 1, frameIdx))
+  if (frameIdx === gd.frames.length - 1) {
+    gc.player.pause();
   }
   setFrame(frameIdx)
   d3.select("#scrubber").property("value", state.currentFrameIdx);
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
 }
-player.onTick(step)
+gc.player.onTick(step)
 
 export function getOutputWeights(network: nn.Node[][]): number[] {
   let weights: number[] = [];
@@ -548,19 +566,19 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 }
 
 function redraw() {
-  lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
-  lineChart.setData(frames.map(frame => [frame.lossTest, frame.lossTrain]));
+  gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
+  gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
   d3.select("#heatmap").selectAll("div").remove();
-  finalHeatMap = new HeatMap(300, currentConfig.n_vocab, currentConfig.n_vocab,
-    xDomain, xDomain, d3.select("#heatmap"), { showAxes: true });
+  gc.finalHeatMap = new HeatMap(300, gd.currentConfig.n_vocab, gd.currentConfig.n_vocab,
+    d3.select("#heatmap"), { showAxes: true });
   d3.select("#residual-input").selectAll("div").remove();
-  residualHeatMap =
-    new HeatMap(100, currentConfig.n_ctx, currentConfig.d_embed, xDomain, xDomain, d3.select("#residual-input"));
+  gc.residualHeatMap =
+    new HeatMap(100, gd.currentConfig.n_ctx, gd.currentConfig.d_embed, d3.select("#residual-input"));
   d3.select("#positional-embedding").selectAll("div").remove();
-  positionalHeatMap =
-    new HeatMap(100, currentConfig.n_ctx, currentConfig.d_embed, xDomain, xDomain, d3.select("#positional-embedding"));
-  let shape = new Array(currentConfig.n_blocks).fill(currentConfig.n_heads)
-  transformer = nn.buildNetwork(shape, currentConfig.vocabulary);
+  gc.positionalHeatMap =
+    new HeatMap(100, gd.currentConfig.n_ctx, gd.currentConfig.d_embed, d3.select("#positional-embedding"));
+  let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
+  transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
   drawNetwork(transformer);
   setFrame(0);
   updateUI();
@@ -569,7 +587,7 @@ function redraw() {
 function initialLoad() {
   fetch('./data/tag_glossary.json')
     .then(response => response.json())
-    .then(data => tagGlossary = data)
+    .then(data => gd.tagGlossary = data)
 
   fetch('./data/contents.json')
     .then(response => response.json())
@@ -579,12 +597,12 @@ function initialLoad() {
         fetch(`./data/${exp_name}.json`)
           .then(response => response.json())
           .then(data => {
-            experiments[exp_name] = data
+            gd.experiments[exp_name] = data
             exp_selector.append("option").text(data.name).attr("value", exp_name)
           })
           .catch(error => console.log(error))
       }
-      console.log("All Experiments", experiments)
+      console.log("All Experiments", gd.experiments)
     })
     .catch(error => console.log(error));
 }
@@ -595,7 +613,7 @@ function loadData(experiment: string, filetag: string) {
     .then(response => response.json())
     .then(data => {
       console.log(`Experiment params for '${filetag}'`, data)
-      currentConfig = data;
+      gd.currentConfig = data;
       setExperimentalParams()
     })
     .catch(error => console.log(error));
@@ -604,7 +622,7 @@ function loadData(experiment: string, filetag: string) {
     .then(response => response.json())
     .then(data => {
       console.log("Frames", data)
-      frames = data;
+      gd.frames = data;
       selectedTokenId = null
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)

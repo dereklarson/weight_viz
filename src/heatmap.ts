@@ -34,8 +34,6 @@ export class HeatMap {
     showAxes: false,
     noSvg: false
   };
-  private xScale;
-  private yScale;
   private nRow: number;
   private nCol: number;
   private color;
@@ -43,9 +41,8 @@ export class HeatMap {
   private svg;
 
   constructor(
-    width: number, nRow: number, nCol: number, xDomain: [number, number],
-    yDomain: [number, number], container,
-    userSettings?: HeatMapSettings) {
+    width: number, nRow: number, nCol: number,
+    container, userSettings?: HeatMapSettings) {
     this.nRow = nRow;
     this.nCol = nCol;
     let height = (nRow / nCol) * width
@@ -57,14 +54,6 @@ export class HeatMap {
       }
     }
     let padding = this.settings.showAxes ? 20 : 0;
-
-    this.xScale = d3.scale.linear()
-      .domain(xDomain)
-      .range([0, width - 2 * padding]);
-
-    this.yScale = d3.scale.linear()
-      .domain(yDomain)
-      .range([height - 2 * padding, 0]);
 
     // Get a range of colors.
     let tmpScale = d3.scale.linear<string, number>()
@@ -118,22 +107,32 @@ export class HeatMap {
     }
 
     if (this.settings.showAxes) {
-      let xAxis = d3.svg.axis()
-        .scale(this.xScale)
+      var xDim = width - 2 * padding;
+      var yDim = height - 2 * padding;
+      var xScale = d3.scale.linear()
+        .domain([0, nCol - 1])
+        .range([0, yDim * (nCol - 1) / nCol]);
+
+      var xAxis = d3.svg.axis()
+        .scale(xScale)
         .orient("bottom");
 
-      let yAxis = d3.svg.axis()
-        .scale(this.yScale)
+      var yScale = d3.scale.linear()
+        .domain([0, nRow - 1])
+        .range([xDim * (nRow - 1) / nRow, 0]);
+
+      var yAxis = d3.svg.axis()
+        .scale(yScale)
         .orient("right");
 
       this.svg.append("g")
         .attr("class", "x axis")
-        .attr("transform", `translate(0,${height - 2 * padding})`)
+        .attr("transform", `translate(${width / (2 * nCol)},${yDim})`)
         .call(xAxis);
 
       this.svg.append("g")
         .attr("class", "y axis")
-        .attr("transform", "translate(" + (width - 2 * padding) + ",0)")
+        .attr("transform", `translate(${xDim}, ${height / (2 * nRow)})`)
         .call(yAxis);
     }
   }

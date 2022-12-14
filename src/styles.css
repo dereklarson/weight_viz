@@ -492,11 +492,11 @@ g.column rect {
   /* dominant-baseline: auto; */
 }
 
-#heatmap .tick:nth-child(7) text {
+#heatmap .tick .selected text {
   fill: #333;
 }
 
-#heatmap .tick:nth-child(7) line {
+#heatmap .tick .selected line {
   stroke: #999;
 }
 

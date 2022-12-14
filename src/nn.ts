@@ -29,7 +29,7 @@ export interface TransformerBlock {
   mlp: Matrix,
 }
 
-export interface Frame {
+export interface WFrame {
   epoch: 0,
   lossTest: 1,
   lossTrain: 1,
