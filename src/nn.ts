@@ -12,29 +12,35 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+import { add, clone, matrix, Matrix, multiply, transpose } from "mathjs";
+
+type Array2D = number[][]
+
 export interface TransformerConfig {
   n_ctx: number,
   d_embed: number,
+  d_head: number,
   n_heads: number,
   n_blocks: number,
   n_vocab: number,
   vocabulary: string[],
 }
 
-type Matrix = number[][];
-
 export interface TransformerBlock {
-  attention: Matrix[],
-  output: Matrix[],
-  mlp: Matrix,
+  attention: Array2D[],
+  output: Array2D[],
+  qk: Array2D[],
+  ov: Array2D[],
+  mlp: Array2D,
 }
 
 export interface WFrame {
-  epoch: 0,
-  lossTest: 1,
-  lossTrain: 1,
-  embedding: Matrix,
-  pos_embed: Matrix,
+  epoch: number,
+  lossTest: number,
+  lossTrain: number,
+  embedding: Array2D,
+  unembedding: Array2D,
+  pos_embed: Array2D,
   blocks: TransformerBlock[],
 }
 
@@ -122,7 +128,44 @@ export function buildNetwork(blocks: number[], vocabulary: string[]): Node[][] {
   return network;
 }
 
-function normColSum(matrix: number[][]) {
+function softmax(logits: number[]) {
+  const maxLogit = Math.max(...logits);
+  const scores = logits.map(l => Math.exp(l - maxLogit));
+  const denom = scores.reduce((acc, cur) => acc + cur);
+  return scores.map(s => s / denom);
+}
+
+function maskAndScale(attn: Matrix, scale: number) {
+  return attn.map((val, index) => index[0] >= index[1] ? val / scale : -1e9)
+}
+
+/** Returns the series of residual states propagating through the network */
+export function forward(context: number[], frame: WFrame, config: TransformerConfig) {
+  var embedding = matrix(context.map((tokenIdx) => frame.embedding[tokenIdx]))
+  var position = matrix(frame.pos_embed)
+  var preBlock = add(embedding, matrix(frame.pos_embed))
+  let block1 = clone(preBlock);
+  let attn_weights = []
+  for (let blockIdx = 0; blockIdx < frame.blocks.length; blockIdx++) {
+    let block = frame.blocks[blockIdx]
+    for (let headIdx = 0; headIdx < frame.blocks[0].qk.length; headIdx++) {
+      // Calculate weighted attention matrix
+      var attn = multiply(multiply(preBlock, transpose(block.qk[headIdx])), transpose(preBlock));
+      attn = maskAndScale(attn, Math.sqrt(config.d_head))
+      var attn_sm = attn.toArray().map((row) => softmax(row))
+      attn_weights.push(attn_sm)
+      // Apply attention to OV circuit
+      var weighted = multiply(transpose(attn_sm), preBlock)
+      var head_sum = multiply(weighted, transpose(block.ov[headIdx]))
+      block1 = add(block1, head_sum)
+    }
+  }
+  var unembed = multiply(block1, frame.unembedding)
+
+  return { position, embedding, preBlock, block1, unembed, attn_weights }
+}
+
+function normColSum(matrix: Array2D) {
   var sum = (base, acc) => base.map((val, idx) => acc[idx] + val)
   var cols = matrix.reduce(sum)
   var norm = Math.max(...cols)
@@ -132,7 +175,7 @@ function normColSum(matrix: number[][]) {
 /**
  * Updates the weights of the network
  */
-export function updateWeights(network: Node[][], frame_heads: number[][][],
+export function updateWeights(network: Node[][], frame_heads: Array2D[],
   selectedTokenId: string, inspectedNodeId: string) {
   var [inspBlockIdx, inspHeadIdx, inspIsOut] = parseNodeId(inspectedNodeId)
   for (let blockIdx = 1; blockIdx < network.length; blockIdx++) {

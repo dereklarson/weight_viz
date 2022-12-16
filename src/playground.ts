@@ -14,7 +14,8 @@ limitations under the License.
 ==============================================================================*/
 
 import * as d3 from 'd3';
-import { HeatMap } from "./heatmap";
+import { matrix } from "mathjs";
+import { colorScale, HeatMap } from "./heatmap";
 import { LineChart } from "./linechart";
 import * as nn from "./nn";
 import { Player } from "./player";
@@ -24,9 +25,9 @@ const TOKEN_SIZE = 20;
 const RECT_SIZE = 60;
 
 /** Define a global Objects for clear organization of variables
- *  gs -- Global settings, 
- *  gc -- Global components: heatmaps, Player controls
  *  gd -- Global data: the loaded experiment data 
+ *  gc -- Global components: heatmaps, Player controls
+ *  gs -- Global settings, 
 */
 interface GlobalData {
   experiments: { [key: string]: { name: string, tags: string[] } },
@@ -47,27 +48,35 @@ let gd: GlobalData = {
 interface GlobalComponents {
   player: Player,
   lineChart: LineChart,
-  residualHeatMap: HeatMap,
-  positionalHeatMap: HeatMap,
-  finalHeatMap: HeatMap,
+  residuals: HeatMap[],
+  inspectHeatMap: HeatMap,
+  resultHeatMap: HeatMap,
 }
 
 let gc: GlobalComponents = {
   player: new Player(),
   lineChart: undefined,
-  residualHeatMap: undefined,
-  positionalHeatMap: undefined,
-  finalHeatMap: undefined,
+  residuals: [],
+  resultHeatMap: undefined,
+  inspectHeatMap: undefined,
 }
 
-// Supplementary state variables that won't be serialized
-let selectedTokenId: string = null;
-let inspectedNodeId: string = "0_0";
+interface GlobalSettings {
+  selectedTokenId: string,
+  inspectedNodeId: string,
+  residualIds: string[],
+  transformer: nn.Node[][],
+}
+
+let gs: GlobalSettings = {
+  selectedTokenId: null,
+  inspectedNodeId: "0_0",
+  residualIds: ["position", "embedding", "preBlock", "block1"],
+  transformer: null,
+}
 
 // State contains variables we can load from the URL
 let state = State.deserializeState();
-
-let transformer: nn.Node[][] = null;
 
 // A supplied glossary for parameter abbrevations
 function parseTag(tag: string) {
@@ -164,6 +173,13 @@ function makeGUI() {
   useContext.property("checked", state.useContext);
   d3.select("#residual-box").classed("hidden", !state.useContext)
 
+  let usePosEmbed = d3.select("#use-pos-embed").on("change", function () {
+    state.usePosEmbed = this.checked;
+    state.serialize();
+    updateUI()
+  });
+  usePosEmbed.property("checked", state.usePosEmbed);
+
   // Add scale to the gradient color map.
   let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);
   let xAxis = d3.svg.axis()
@@ -178,7 +194,7 @@ function makeGUI() {
 
   // Listen for css-responsive changes and redraw the svg network.
   window.addEventListener("resize", () => {
-    drawNetwork(transformer)
+    drawNetwork(gs.transformer)
     updateUI()
   });
 }
@@ -187,11 +203,6 @@ function updateWeightsUI(network: nn.Node[][], container) {
   const linkWidthScale = d3.scale.linear()
     .domain([0, 5])
     .range([1, 10])
-    .clamp(true);
-
-  const colorScale = d3.scale.linear<string, number>()
-    .domain([-1, 0, 1])
-    .range(["#f59322", "#e8eaeb", "#0877bd"])
     .clamp(true);
 
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
@@ -233,10 +244,6 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
   });
   text.append("tspan").text(nodeId)
 
-
-    .on("click", function () {
-    });
-
   function makeClickCallback(canvas, _nodeId: string) {
     return function () {
       state.tokenState[_nodeId] = !state.tokenState[_nodeId];
@@ -252,7 +259,7 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
 
   function makeHoverCallback(canvas, _nodeId: string, entering: boolean) {
     return function () {
-      selectedTokenId = entering ? _nodeId : state.selectedNodeId || _nodeId;
+      gs.selectedTokenId = entering ? _nodeId : state.selectedNodeId || _nodeId;
       canvas.classed("hovered", entering);
       updateUI()
     }
@@ -300,7 +307,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
 
   function makeHoverCallback(canvas, _nodeId: string, entering: boolean) {
     return function () {
-      inspectedNodeId = entering ? _nodeId : state.selectedNodeId || _nodeId;
+      gs.inspectedNodeId = entering ? _nodeId : state.selectedNodeId || _nodeId;
       canvas.classed("hovered", entering);
       updateUI()
     }
@@ -494,19 +501,19 @@ function updateUI() {
   state.serialize();
 
   // Update the links
-  nn.updateWeights(transformer, gd.currentFrame.blocks[0].attention, selectedTokenId, state.selectedNodeId)
-  updateWeightsUI(transformer, d3.select("g.core"));
+  nn.updateWeights(gs.transformer, gd.currentFrame.blocks[0].attention, gs.selectedTokenId, state.selectedNodeId)
+  updateWeightsUI(gs.transformer, d3.select("g.core"));
 
   /** Update all heatmaps **/
-  let [blockIdx, headIdx, isOut] = nn.parseNodeId(inspectedNodeId);
+  let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.inspectedNodeId);
   var blockKey = isOut ? "output" : "attention"
-  gc.finalHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
+  gc.inspectHeatMap.updateBackground(matrix(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]));
 
-  gc.positionalHeatMap.updateBackground(gd.currentFrame.pos_embed);
-  if (state.useContext) {
-    let residual = new Array(gd.currentConfig.n_ctx).fill(0).map(_ => new Array(gd.currentConfig.d_embed).fill(0))
-    state.context.forEach((tokenIdx, ctxIdx) => residual[ctxIdx] = gd.currentFrame.embedding[tokenIdx])
-    gc.residualHeatMap.updateBackground(residual);
+  if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
+    var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
+    // console.log("Forward pass", forward)
+    gs.residualIds.map((id, idx) => gc.residuals[idx].updateBackground(forward[id]))
+    gc.resultHeatMap.updateBackground(forward.unembed);
   }
 
   // Update all attention and output patterns for nodes.
@@ -521,8 +528,7 @@ function updateUI() {
         var blockKey = isOut ? "output" : "attention"
         frameData = gd.currentFrame.blocks[blockIdx][blockKey][headIdx]
       }
-      // data.heatmap.updateBackground(gd.currentFrame.blocks[blockIdx][blockKey][headIdx])
-      data.heatmap.updateBackground(frameData)
+      data.heatmap.updateBackground(matrix(frameData))
     });
 
   function zeroPad(n: number): string {
@@ -539,6 +545,7 @@ function updateUI() {
   }
 
 
+  d3.select("#context").text(`${state.context}`)
   d3.select("#experiment").property("value", state.experiment)
   d3.select(`#${state.currentTab}Tab`).classed("active", true);
   d3.select("#configuration").property("value", state.currentTag)
@@ -584,20 +591,17 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 }
 
 function redraw() {
+  var ccfg = gd.currentConfig
   gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
   gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
-  d3.select("#heatmap").selectAll("div").remove();
-  gc.finalHeatMap = new HeatMap(300, gd.currentConfig.n_vocab, gd.currentConfig.n_vocab,
-    d3.select("#heatmap"), { showAxes: true });
-  d3.select("#residual-input").selectAll("div").remove();
-  gc.residualHeatMap =
-    new HeatMap(100, gd.currentConfig.n_ctx, gd.currentConfig.d_embed, d3.select("#residual-input"));
-  d3.select("#positional-embedding").selectAll("div").remove();
-  gc.positionalHeatMap =
-    new HeatMap(100, gd.currentConfig.n_ctx, gd.currentConfig.d_embed, d3.select("#positional-embedding"));
+  gc.inspectHeatMap = new HeatMap(300, ccfg.n_vocab, ccfg.n_vocab, d3.select("#heatmap"), { showAxes: true });
+  gc.residuals = gs.residualIds.map((id) =>
+    new HeatMap(100, ccfg.n_ctx, ccfg.d_embed, d3.select(`#${id}`), { maxHeight: 60 })
+  )
+  gc.resultHeatMap = new HeatMap(100, ccfg.n_ctx, ccfg.n_vocab, d3.select("#unembed"))
   let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
-  transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
-  drawNetwork(transformer);
+  gs.transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
+  drawNetwork(gs.transformer);
   setFrame(0);
   updateUI();
 };
@@ -630,7 +634,7 @@ function loadData(experiment: string, filetag: string) {
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())
     .then(data => {
-      console.log(`Experiment params for '${filetag}'`, data)
+      console.log(`Experimental params for '${filetag}'`, data)
       gd.currentConfig = data;
       setExperimentalParams()
     })
@@ -640,8 +644,8 @@ function loadData(experiment: string, filetag: string) {
     .then(response => response.json())
     .then(data => {
       console.log("Frames", data)
-      gd.frames = data;
-      selectedTokenId = null
+      gd.frames = data
+      gs.selectedTokenId = null
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)
       redraw();

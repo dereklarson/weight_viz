@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 import * as d3 from 'd3';
+import { Matrix } from 'mathjs';
 
 export interface HeatMapSettings {
   [key: string]: any;
@@ -21,8 +22,17 @@ export interface HeatMapSettings {
   noSvg?: boolean;
 }
 
-/** Number of different shades (colors) when drawing a gradient heatmap */
-const NUM_SHADES = 30;
+// Original Orange -> Grey -> Blue scheme
+let colorArray = ["#f59322", "#e8eaeb", "#0877bd"]
+export let colorScale = d3.scale.linear<string, number>()
+  .domain([-1, 0, 1])
+  .range(colorArray)
+  .clamp(true);
+
+// Adjust the color legend
+d3.select("#gradient").selectAll("stop").each(function (d, idx) {
+  d3.select(this).attr("stop-color", colorArray[idx])
+})
 
 /**
  * Draws a heatmap using canvas. Used for showing the learned decision
@@ -32,11 +42,12 @@ const NUM_SHADES = 30;
 export class HeatMap {
   private settings: HeatMapSettings = {
     showAxes: false,
-    noSvg: false
+    noSvg: false,
+    maxHeight: null,
   };
   private nRow: number;
   private nCol: number;
-  private color;
+  private colorScale;
   private canvas;
   private svg;
 
@@ -45,6 +56,7 @@ export class HeatMap {
     container, userSettings?: HeatMapSettings) {
     this.nRow = nRow;
     this.nCol = nCol;
+    this.colorScale = colorScale
     let height = (nRow / nCol) * width
 
     if (userSettings != null) {
@@ -54,22 +66,14 @@ export class HeatMap {
       }
     }
     let padding = this.settings.showAxes ? 20 : 0;
+    if (this.settings.maxHeight !== null && height > this.settings.maxHeight) {
+      var ratio = this.settings.maxHeight / height;
+      height = this.settings.maxHeight;
+      width = width * ratio;
+    }
 
-    // Get a range of colors.
-    let tmpScale = d3.scale.linear<string, number>()
-      .domain([0, .5, 1])
-      .range(["#f59322", "#e8eaeb", "#0877bd"])
-      .clamp(true);
-    // Due to numerical error, we need to specify
-    // d3.range(0, end + small_epsilon, step)
-    // in order to guarantee that we will have end/step entries with
-    // the last element being equal to end.
-    let colors = d3.range(0, 1 + 1E-9, 1 / NUM_SHADES).map(a => {
-      return tmpScale(a);
-    });
-    this.color = d3.scale.quantize()
-      .domain([-1, 1])
-      .range(colors);
+    // Clean out any existing content
+    container.selectAll("div").remove()
 
     container = container.append("div")
       .style({
@@ -139,11 +143,8 @@ export class HeatMap {
     }
   }
 
-  updateBackground(data: number[][]): void {
-    let dx = data[0].length;
-    let dy = data.length;
-
-    // console.log("UpdateBackground", dx, dy, data)
+  updateBackground(data: Matrix): void {
+    let [dy, dx] = data.size()
 
     if (dx !== this.nCol || dy !== this.nRow) {
       throw new Error(
@@ -157,8 +158,8 @@ export class HeatMap {
 
     for (let y = 0, p = -1; y < dy; ++y) {
       for (let x = 0; x < dx; ++x) {
-        let value = data[y][x];
-        let c = d3.rgb(this.color(value));
+        let value = data.get([y, x]);
+        let c = d3.rgb(this.colorScale(value));
         image.data[++p] = c.r;
         image.data[++p] = c.g;
         image.data[++p] = c.b;
@@ -167,30 +168,4 @@ export class HeatMap {
     }
     context.putImageData(image, 0, 0);
   }
-}  // Close class HeatMap.
-
-export function reduceMatrix(matrix: number[][], factor: number): number[][] {
-  if (matrix.length !== matrix[0].length) {
-    throw new Error("The provided matrix must be a square matrix");
-  }
-  if (matrix.length % factor !== 0) {
-    throw new Error("The width/height of the matrix must be divisible by " +
-      "the reduction factor");
-  }
-  let result: number[][] = new Array(matrix.length / factor);
-  for (let i = 0; i < matrix.length; i += factor) {
-    result[i / factor] = new Array(matrix.length / factor);
-    for (let j = 0; j < matrix.length; j += factor) {
-      let avg = 0;
-      // Sum all the values in the neighborhood.
-      for (let k = 0; k < factor; k++) {
-        for (let l = 0; l < factor; l++) {
-          avg += matrix[i + k][j + l];
-        }
-      }
-      avg /= (factor * factor);
-      result[i / factor][j / factor] = avg;
-    }
-  }
-  return result;
-}
+} 

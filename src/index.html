@@ -22,7 +22,7 @@ limitations under the License.
   <meta name="keywords" content="neural networks,machine learning,javascript">
 
   <meta name="author" content="Daniel Smilkov and Shan Carter">
-  <title>A Neural Network Playground</title>
+  <title>Transformer Evolution Visualization</title>
   <link rel="stylesheet" href="bundle.css" type="text/css">
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet"
     type="text/css">
@@ -103,7 +103,11 @@ limitations under the License.
       <div>
         <label class="ui-useContext mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-context">
           <input type="checkbox" id="use-context" class="mdl-checkbox__input">
-          <span class="mdl-checkbox__label label">Use Context</span>
+          <span class="mdl-checkbox__label label">Show Context</span>
+        </label>
+        <label class="ui-usePosEmbed mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-pos-embed">
+          <input type="checkbox" id="use-pos-embed" class="mdl-checkbox__input">
+          <span class="mdl-checkbox__label label">Use Position Embedding</span>
         </label>
       </div>
 
@@ -135,7 +139,6 @@ limitations under the License.
     <div class="column features">
       <h4>Token Inputs</h4>
       <p>The set of tokens and their interactions</p>
-      <span class="value" id="context"></span>
       <div id="network">
         <svg id="svg" width="510" height="450">
           <defs>
@@ -153,7 +156,7 @@ limitations under the License.
     </div>
 
     <!-- Transformer Blocks Column -->
-    <div class="column blocks">
+    <div class="column blocks" style="width: 40%">
       <h4>
         <span id="layers-label">Transformer Blocks</span>
       </h4>
@@ -202,19 +205,25 @@ limitations under the License.
   <div id="residual-box" class="l--page hidden">
     <div class="column options">
       <h4>Residual Stream</h4>
-      <p>Track changes to the residuals through each layer</p>
+      <p>Positonal Embedding</p>
+      <div id="position"></div>
     </div>
     <div class="column features">
-      <p>Positional Embedding</p>
-      <div id="positional-embedding"></div>
-      <p>Initial Embedding</p>
-      <div id="residual-input"></div>
+      <span>Context: <span class="value" id="context"></span></span>
+      <p>Embedding</p>
+      <div id="embedding"></div>
     </div>
-    <div id="residual-layers" class="column blocks"></div>
-    <div id="residual-output" class="column output"></div>
+    <div id="residual-layers" class="column blocks">
+      <p>Preblocks</p>
+      <div id="preBlock"></div>
+    </div>
+    <div id="residual-output" class="column output">
+      <p>block 1</p>
+      <div id="block1"></div>
+      <p>unembed</p>
+      <div id="unembed"></div>
+    </div>
   </div>
-
-  <script src="bundle.js"></script>
 </body>
 
 </html>

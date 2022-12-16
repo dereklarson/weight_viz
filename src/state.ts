@@ -41,6 +41,7 @@ export class State {
     { name: "currentTab", type: Type.STRING },
     // { name: "currentFrameIdx", type: Type.NUMBER },
     { name: "useContext", type: Type.BOOLEAN },
+    { name: "usePosEmbed", type: Type.BOOLEAN },
   ];
 
   [key: string]: any;
@@ -49,11 +50,12 @@ export class State {
   currentTab: string = "model";
   currentFrameIdx: number = 0;
   useContext: boolean = false;
+  usePosEmbed: boolean = false;
 
-  // Should we serialize tokenState?
+  // Should we serialize the following?
   tokenState: { [id: string]: boolean } = {};
   selectedNodeId: string = null;
-  context: number[] = [];
+  context: number[] = [0, 1];
 
   /**
    * Deserializes the state from the url hash.

@@ -809,12 +809,7 @@ g.column rect {
 
 /* Transformer Blocks column */
 
-.blocks.column {
-  width: 40%;
-}
-
 #main-part .blocks h4 {
-  -webkit-justify-content: center;
   justify-content: center;
   margin-top: -5px;
 }
@@ -822,16 +817,6 @@ g.column rect {
 .blocks #layers-label {
   width: 125px;
   display: inline-block;
-}
-
-.blocks #num-layers {
-  margin: 0 10px;
-  width: 10px;
-  display: inline-block;
-}
-
-.blocks h4 .mdl-button {
-  margin-right: 5px;
 }
 
 .bracket {
