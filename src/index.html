@@ -105,10 +105,6 @@ limitations under the License.
           <input type="checkbox" id="use-context" class="mdl-checkbox__input">
           <span class="mdl-checkbox__label label">Show Context</span>
         </label>
-        <label class="ui-usePosEmbed mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use-pos-embed">
-          <input type="checkbox" id="use-pos-embed" class="mdl-checkbox__input">
-          <span class="mdl-checkbox__label label">Use Position Embedding</span>
-        </label>
       </div>
 
       <h4 style="margin-top:20px">
@@ -206,22 +202,30 @@ limitations under the License.
     <div class="column options">
       <h4>Residual Stream</h4>
       <p>Positonal Embedding</p>
-      <div id="position"></div>
+      <div id="position" class="residual-canvas"></div>
     </div>
     <div class="column features">
-      <span>Context: <span class="value" id="context"></span></span>
+      <h4>Context: [<span class="value" id="context"></span>]</h4>
       <p>Embedding</p>
-      <div id="embedding"></div>
+      <div id="embedding" class="residual-canvas"></div>
     </div>
     <div id="residual-layers" class="column blocks">
-      <p>Preblocks</p>
-      <div id="preBlock"></div>
+      <h4>Blocks</h4>
+      <div style="display: flex; justify-content: space-between;">
+        <div>
+          <p>Preblocks</p>
+          <div id="preBlock" class="residual-canvas"></div>
+        </div>
+        <div>
+          <p>block 1</p>
+          <div id="block1" class="residual-canvas"></div>
+        </div>
+      </div>
     </div>
     <div id="residual-output" class="column output">
-      <p>block 1</p>
-      <div id="block1"></div>
+      <h4>Output</h4>
       <p>unembed</p>
-      <div id="unembed"></div>
+      <div id="unembed" class="residual-canvas"></div>
     </div>
   </div>
 </body>

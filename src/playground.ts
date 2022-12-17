@@ -65,6 +65,7 @@ interface GlobalSettings {
   selectedTokenId: string,
   inspectedNodeId: string,
   residualIds: string[],
+  paramTabs: string[]
   transformer: nn.Node[][],
 }
 
@@ -72,6 +73,7 @@ let gs: GlobalSettings = {
   selectedTokenId: null,
   inspectedNodeId: "0_0",
   residualIds: ["position", "embedding", "preBlock", "block1"],
+  paramTabs: ["model", "data", "train"],
   transformer: null,
 }
 
@@ -93,7 +95,7 @@ function titleCase(str: string) {
 }
 
 let paramKeys = {
-  data: ["seed", "training_fraction", "value_range", "dist_style", "value_count"],
+  data: ["operation", "seed", "training_fraction", "value_range", "dist_style", "value_count"],
   model: ["d_embed", "d_head", "d_mlp", "n_ctx", "n_heads", "n_blocks"],
   train: ["learning_rate", "weight_decay", "n_epochs"],
 }
@@ -127,6 +129,7 @@ function makeGUI() {
     loadData(state.experiment, state.currentTag);
   });
 
+  /* The Parameters table: Tab row at top */
   function setTab(tabName: string) {
     d3.select(`#${state.currentTab}Tab`).classed("active", false);
     state.currentTab = tabName;
@@ -134,9 +137,9 @@ function makeGUI() {
     setExperimentalParams()
   }
 
-  d3.select("#modelTab").on("click", () => setTab("model"));
-  d3.select("#dataTab").on("click", () => setTab("data"));
-  d3.select("#trainTab").on("click", () => setTab("train"));
+  gs.paramTabs.forEach(name =>
+    d3.select(`#${name}Tab`).on("click", () => setTab(name))
+  )
 
   /* The Player controls: play/pause, reset, and step left or right */
   d3.select("#play-pause-button").on("click", () => gc.player.playOrPause());
@@ -201,7 +204,7 @@ function makeGUI() {
 
 function updateWeightsUI(network: nn.Node[][], container) {
   const linkWidthScale = d3.scale.linear()
-    .domain([0, 5])
+    .domain([0, 1])
     .range([1, 10])
     .clamp(true);
 
@@ -254,6 +257,7 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
       d3.select("#context").text(`${state.context}`)
       if (state.tokenState[_nodeId]) canvas.classed("active", true);
       else canvas.classed("active", false);
+      updateUI()
     }
   }
 
@@ -302,6 +306,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       state.selectedNodeId = _nodeId === state.selectedNodeId ? null : _nodeId
       d3.select("#network").selectAll("div.canvas").classed("active", false)
       if (state.selectedNodeId) canvas.classed("active", true);
+      updateUI()
     }
   }
 
@@ -377,7 +382,6 @@ function drawNetwork(network: nn.Node[][]): void {
     .domain(d3.range(1, numLayers - 1))
     .rangePoints([featureWidth, width - RECT_SIZE], 0.7);
   let nodeIndexScale = (nodeIndex: number, dim: number) => nodeIndex * (dim + 25);
-
 
   // Draw the input layer.
   let xDim = RECT_SIZE;
@@ -511,7 +515,7 @@ function updateUI() {
 
   if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
     var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
-    // console.log("Forward pass", forward)
+    console.log("Forward pass", forward)
     gs.residualIds.map((id, idx) => gc.residuals[idx].updateBackground(forward[id]))
     gc.resultHeatMap.updateBackground(forward.unembed);
   }
@@ -545,10 +549,10 @@ function updateUI() {
   }
 
 
-  d3.select("#context").text(`${state.context}`)
   d3.select("#experiment").property("value", state.experiment)
-  d3.select(`#${state.currentTab}Tab`).classed("active", true);
   d3.select("#configuration").property("value", state.currentTag)
+  d3.select("#context").text(`${state.context}`)
+  d3.select(`#${state.currentTab}Tab`).classed("active", true);
   d3.select("#scrubber").property('value', state.currentFrameIdx)
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
   d3.select("#loss-train").text(logHumanReadable(gd.currentFrame.lossTrain));
@@ -598,7 +602,7 @@ function redraw() {
   gc.residuals = gs.residualIds.map((id) =>
     new HeatMap(100, ccfg.n_ctx, ccfg.d_embed, d3.select(`#${id}`), { maxHeight: 60 })
   )
-  gc.resultHeatMap = new HeatMap(100, ccfg.n_ctx, ccfg.n_vocab, d3.select("#unembed"))
+  gc.resultHeatMap = new HeatMap(150, ccfg.n_ctx, ccfg.n_vocab, d3.select("#unembed"))
   let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
   gs.transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
   drawNetwork(gs.transformer);
@@ -634,7 +638,6 @@ function loadData(experiment: string, filetag: string) {
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())
     .then(data => {
-      console.log(`Experimental params for '${filetag}'`, data)
       gd.currentConfig = data;
       setExperimentalParams()
     })
@@ -643,7 +646,7 @@ function loadData(experiment: string, filetag: string) {
   fetch(`./data/${state.experiment}__${filetag}__frames.json`)
     .then(response => response.json())
     .then(data => {
-      console.log("Frames", data)
+      // console.log("Frames", data)
       gd.frames = data
       gs.selectedTokenId = null
       d3.select("#loader").classed("hidden", true)

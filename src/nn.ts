@@ -165,11 +165,10 @@ export function forward(context: number[], frame: WFrame, config: TransformerCon
   return { position, embedding, preBlock, block1, unembed, attn_weights }
 }
 
-function normColSum(matrix: Array2D) {
+function aggProbs(matrix: Array2D) {
   var sum = (base, acc) => base.map((val, idx) => acc[idx] + val)
-  var cols = matrix.reduce(sum)
-  var norm = Math.max(...cols)
-  return cols.map(val => val / norm)
+  var weights = matrix.reduce(sum)
+  return softmax(weights)
 }
 
 /**
@@ -182,12 +181,12 @@ export function updateWeights(network: Node[][], frame_heads: Array2D[],
     let currentBlock = network[blockIdx];
     for (let i = 0; i < currentBlock.length; i++) {
       let node = currentBlock[i];
-      let cols = selectedTokenId !== null ? frame_heads[i][parseInt(selectedTokenId)] : normColSum(frame_heads[i])
-      if (blockIdx - 1 === inspBlockIdx && inspHeadIdx !== i) cols = Array(cols.length).fill(0)
+      let probs = selectedTokenId !== null ? softmax(frame_heads[i][parseInt(selectedTokenId)]) : aggProbs(frame_heads[i])
+      if (blockIdx - 1 === inspBlockIdx && inspHeadIdx !== i) probs = new Array(probs.length).fill(0)
       // Update the weights coming into this node.
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
-        link.weight = cols[j]
+        link.weight = probs[j]
         if (link.isDead) {
           continue;
         }
