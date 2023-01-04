@@ -12,9 +12,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-import { add, clone, matrix, Matrix, multiply, transpose } from "mathjs";
 
+import { add, clone, matrix, multiply, transpose } from "./minMathjs";
 
+// Mathjs Matrix type was difficult to extract via minMathjs
+type Matrix = any;
 
 type Array2D = number[][]
 

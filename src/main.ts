@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 import * as d3 from 'd3';
-import { matrix } from "mathjs";
 import { colorScale, HeatMap } from "./heatmap";
 import { LineChart } from "./linechart";
 import * as nn from "./nn";
@@ -539,7 +538,7 @@ function updateUI() {
   /** Update all heatmaps **/
   let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.activeNodeId);
   var blockKey = isOut ? "output" : "attention"
-  gc.inspectHeatMap.updateBackground(matrix(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]));
+  gc.inspectHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
 
   if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
     var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
@@ -560,7 +559,7 @@ function updateUI() {
         var blockKey = isOut ? "output" : "attention"
         frameData = gd.currentFrame.blocks[blockIdx][blockKey][headIdx]
       }
-      data.heatmap.updateBackground(matrix(frameData))
+      data.heatmap.updateBackground(frameData)
     });
 
   function zeroPad(n: number): string {

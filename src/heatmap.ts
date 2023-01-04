@@ -14,7 +14,10 @@ limitations under the License.
 ==============================================================================*/
 
 import * as d3 from 'd3';
-import { Matrix } from 'mathjs';
+import { matrix } from './minMathjs';
+
+// Mathjs Matrix type was difficult to extract via minMathjs
+type Matrix = any;
 
 export interface HeatMapSettings {
   [key: string]: any;
@@ -143,7 +146,8 @@ export class HeatMap {
     }
   }
 
-  updateBackground(data: Matrix): void {
+  updateBackground(_data: Matrix | number[][]): void {
+    let data = matrix(_data)
     let [dy, dx] = data.size()
 
     if (dx !== this.nCol || dy !== this.nRow) {

@@ -1,8 +1,7 @@
-// Generated using webpack-cli https://github.com/webpack/webpack-cli
-
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 const isProduction = process.env.NODE_ENV == "production";
 
@@ -17,6 +16,8 @@ const config = {
     path: path.resolve(__dirname, "dist"),
   },
   plugins: [
+    // Enable this plugin to launch a treemap Viz of bundle size
+    // new BundleAnalyzerPlugin(),
     new HtmlWebpackPlugin({
       favicon: "./assets/favicon.png",
       template: "index.html",
@@ -56,10 +57,12 @@ const config = {
 module.exports = () => {
   if (isProduction) {
     config.mode = "production";
+    config.devtool = false
 
     config.plugins.push(new MiniCssExtractPlugin());
   } else {
     config.mode = "development";
+    config.devtool = "eval"
   }
   return config;
 };
