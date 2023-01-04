@@ -584,6 +584,7 @@ function updateUI() {
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
   d3.select("#loss-train").text(logHumanReadable(gd.currentFrame.lossTrain));
   d3.select("#loss-test").text(logHumanReadable(gd.currentFrame.lossTest));
+  d3.select("#accuracy-test").text((gd.currentFrame.accuracyTest * 100).toFixed(0));
   d3.select("#epoch-number").text(addCommas(zeroPad(gd.currentFrame.epoch)));
 }
 

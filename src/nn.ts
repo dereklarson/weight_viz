@@ -42,6 +42,7 @@ export interface WFrame {
   epoch: number,
   lossTest: number,
   lossTrain: number,
+  accuracyTest: number,
   embedding: Array2D,
   unembedding: Array2D,
   pos_embed: Array2D,
