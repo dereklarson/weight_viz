@@ -20,6 +20,7 @@ import { LineChart } from "./linechart";
 import * as nn from "./nn";
 import { Player } from "./player";
 import { State } from "./state";
+import './styles.css';
 
 const TOKEN_SIZE = 20;
 const RECT_SIZE = 60;
@@ -227,7 +228,7 @@ function makeGUI() {
 
 function updateWeightsUI(network: nn.Node[][], container) {
   const linkWidthScale = d3.scale.linear()
-    .domain([0, 1])
+    .domain([0, 0.8])
     .range([1, 10])
     .clamp(true);
 
@@ -239,17 +240,23 @@ function updateWeightsUI(network: nn.Node[][], container) {
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
         let marker = "markerArrow"
-        if (gs.activeTokenId !== null) {
-          marker = gs.activeTokenId === link.source.id ? "markerArrow" : "revMarkerArrow";
+        let dashOffset = -state.currentFrameIdx / 3
+        let stroke = colorScale(link.weight);
+        if (gs.activeTokenId === link.source.id && gs.activeNodeId.startsWith(link.dest.id)) {
+          stroke = "#777777";
+        }
+        if (gs.activeTokenId !== null && gs.activeTokenId !== link.source.id) {
+          marker = "revMarkerArrow";
+          dashOffset = -dashOffset;
         }
         container.select(`#link${link.source.id}-${link.dest.id}`)
           .attr({
             "marker-start": `url(#${marker})`
           })
           .style({
-            "stroke-dashoffset": -state.currentFrameIdx / 3,
+            "stroke-dashoffset": dashOffset,
             "stroke-width": linkWidthScale(Math.abs(link.weight)),
-            "stroke": colorScale(link.weight)
+            "stroke": stroke,
           })
           .datum(link);
       }
@@ -442,8 +449,7 @@ function drawNetwork(network: nn.Node[][]): void {
 
       // Draw links.
       for (let j = 0; j < node.inputLinks.length; j++) {
-        let link = node.inputLinks[j];
-        drawLink(link, node2coord, network,
+        drawLink(node.inputLinks[j], node2coord, network,
           container, j === 0, j, node.inputLinks.length).node() as any;
       }
     }
@@ -671,7 +677,7 @@ function loadData(experiment: string, filetag: string) {
   fetch(`./data/${state.experiment}__${filetag}__frames.json`)
     .then(response => response.json())
     .then(data => {
-      // console.log("Frames", data)
+      console.log("Frames", data)
       gd.frames = data
       gs.activeTokenId = null
       state.selectedTokenId = null

@@ -24,7 +24,7 @@ export interface HeatMapSettings {
 
 // Original Orange -> Grey -> Blue scheme
 let colorArray = ["#f59322", "#e8eaeb", "#0877bd"]
-export let colorScale = d3.scale.linear<string, number>()
+export let colorScale = d3.scale.linear<string, string>()
   .domain([-1, 0, 1])
   .range(colorArray)
   .clamp(true);
