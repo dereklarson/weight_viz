@@ -32,9 +32,9 @@ export interface Property {
   type: Type;
 };
 
-// Add the GUI state.
 export class State {
 
+  /** All PROPS are (de)serialized via the URL */
   private static PROPS: Property[] = [
     { name: "experiment", type: Type.STRING },
     { name: "currentTag", type: Type.STRING },
@@ -44,7 +44,6 @@ export class State {
     { name: "usePosEmbed", type: Type.BOOLEAN },
   ];
 
-  [key: string]: any;
   experiment: string = "sample";
   currentTag: string = "default";
   currentTab: string = "model";
@@ -53,7 +52,7 @@ export class State {
   usePosEmbed: boolean = false;
 
   // Should we serialize the following?
-  tokenState: { [id: string]: boolean } = {};
+  selectedTokenId: string = null;
   selectedNodeId: string = null;
   context: number[] = [0, 1];
 

@@ -42,14 +42,19 @@ limitations under the License.
   <!-- Top Controls -->
   <div id="top-controls">
     <div class="container l--page">
+      <!-- Experiment Selection -->
       <div class="control ui-experiment">
         <label for="experiment">Experiment</label>
         <div class="select">
           <select id="experiment">
-            <option value="sample">Sample</option>
+            <!-- <option value="sample">Sample</option> -->
           </select>
+          <div id="exp-notes" class="hovercard">
+            <span class="text">Notes go here</span>
+          </div>
         </div>
       </div>
+      <!-- Configuration Selection -->
       <div class="control ui-configuration">
         <label for="configuration">Configuration</label>
         <div class="select">
@@ -58,6 +63,7 @@ limitations under the License.
           </select>
         </div>
       </div>
+      <!-- Player controls -->
       <div class="timeline-controls">
         <button class="mdl-button mdl-js-button mdl-button--icon ui-resetButton" id="reset-button"
           title="Reset the network">
@@ -142,10 +148,14 @@ limitations under the License.
               markerUnits="userSpaceOnUse">
               <path d="M2,11 L7,6 L2,2" />
             </marker>
+            <marker id="revMarkerArrow" markerWidth="7" markerHeight="13" refX="8" refY="6" orient="auto-start-reverse"
+              markerUnits="userSpaceOnUse">
+              <path d="M2,11 L7,6 L2,2" />
+            </marker>
           </defs>
         </svg>
         <!-- Hover card -->
-        <div id="hovercard">
+        <div id="attn-weights" class="hovercard">
           <span>These links correspond to the strength of attention to the token. </span><span class="value">0.2</span>
         </div>
       </div>

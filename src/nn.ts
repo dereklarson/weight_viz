@@ -97,19 +97,15 @@ export class Link {
 /**
  * Builds a neural network.
  *
- * @param networkShape The shape of the network. E.g. [1, 2, 3, 1] means
- *   the network will have one input node, 2 nodes in first hidden layer,
- *   3 nodes in second hidden layer and 1 output node.
- * @param inputIds List of ids for the input nodes.
+ * @param blocks A list representing the number of attention heads per
+ *   Transformer block in the netowrk. A two-block network with 8 heads each
+ *   has network = [8, 8].
+ * @param tokens List of ids for the input nodes. This might be a selection
+ *   of the vocabulary, or the current context.
  */
-export function buildNetwork(blocks: number[], vocabulary: string[]): Node[][] {
-  // TODO For now, concatenate the 'output' node placeholder
-  blocks = blocks.concat(1)
-  let numBlocks = blocks.length;
-  /** List of layers, with each layer being a list of nodes. */
-  let network: Node[][] = [vocabulary.map(token => new Node(token))];
-  for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
-    // let isOutputblock = blockIdx === numBlocks - 1;
+export function buildNetwork(blocks: number[], tokens: string[]): Node[][] {
+  let network: Node[][] = [tokens.map(token => new Node(token))];
+  for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
     let currentBlock: Node[] = [];
     network.push(currentBlock);
     let numNodes = blocks[blockIdx];

@@ -30,7 +30,7 @@ const RECT_SIZE = 60;
  *  gs -- Global settings, 
 */
 interface GlobalData {
-  experiments: { [key: string]: { name: string, tags: string[] } },
+  experiments: { [key: string]: { name: string, tags: string[], notes: string } },
   tagGlossary: { [key: string]: string },
   frames: nn.WFrame[],
   currentConfig: nn.TransformerConfig,
@@ -38,7 +38,7 @@ interface GlobalData {
 }
 
 let gd: GlobalData = {
-  experiments: { sample: { name: "Sample", tags: ["default"] } },
+  experiments: {},
   tagGlossary: undefined,
   frames: undefined,
   currentConfig: undefined,
@@ -62,16 +62,16 @@ let gc: GlobalComponents = {
 }
 
 interface GlobalSettings {
-  selectedTokenId: string,
-  inspectedNodeId: string,
+  activeTokenId: string,
+  activeNodeId: string,
   residualIds: string[],
   paramTabs: string[]
   transformer: nn.Node[][],
 }
 
 let gs: GlobalSettings = {
-  selectedTokenId: null,
-  inspectedNodeId: "0_0",
+  activeTokenId: null,
+  activeNodeId: "0_0",
   residualIds: ["position", "embedding", "preBlock", "block1"],
   paramTabs: ["model", "data", "train"],
   transformer: null,
@@ -111,6 +111,21 @@ function setExperimentalParams() {
   }
 }
 
+function updateExpHover(display: boolean, coordinates?: [number, number]) {
+  let expNotes = d3.select("#exp-notes");
+  if (!display) {
+    expNotes.style("display", "none");
+    d3.select("#svg").on("click", null);
+    return;
+  }
+  expNotes.style({
+    "left": `${coordinates[0] + 20}px`,
+    "top": `${coordinates[1]}px`,
+    "display": "block"
+  });
+  // expNotes.select(".value").style("display", null)
+}
+
 function makeGUI() {
   /* Two dropdown menus to select the Experiment and Configuration */
   let configuration = d3.select("#configuration").on("input", function () {
@@ -118,16 +133,24 @@ function makeGUI() {
     loadData(state.experiment, state.currentTag);
   });
 
-  d3.select("#experiment").on("change", function () {
-    state.experiment = this.value;
-    state.currentTag = gd.experiments[state.experiment].tags[0];
-    configuration.selectAll("option").remove()
-    gd.experiments[state.experiment].tags.forEach(tag => {
-      let name = tag === "default" ? "Default" : parseTag(tag)
-      configuration.append("option").text(name).attr("value", tag)
+  d3.select("#experiment")
+    .on("mouseenter", function () {
+      updateExpHover(true, d3.mouse(this));
+    }).on("mouseleave", function () {
+      updateExpHover(null)
     })
-    loadData(state.experiment, state.currentTag);
-  });
+    .on("change", function () {
+      state.experiment = this.value;
+      state.currentTag = gd.experiments[state.experiment].tags[0];
+      configuration.selectAll("option").remove()
+      gd.experiments[state.experiment].tags.forEach(tag => {
+        let name = tag === "default" ? "Default" : parseTag(tag)
+        configuration.append("option").text(name).attr("value", tag)
+      })
+      d3.select("#exp-notes").select(".text")
+        .text(gd.experiments[state.experiment].notes);
+      loadData(state.experiment, state.currentTag);
+    });
 
   /* The Parameters table: Tab row at top */
   function setTab(tabName: string) {
@@ -215,7 +238,14 @@ function updateWeightsUI(network: nn.Node[][], container) {
       let node = currentLayer[i];
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
+        let marker = "markerArrow"
+        if (gs.activeTokenId !== null) {
+          marker = gs.activeTokenId === link.source.id ? "markerArrow" : "revMarkerArrow";
+        }
         container.select(`#link${link.source.id}-${link.dest.id}`)
+          .attr({
+            "marker-start": `url(#${marker})`
+          })
           .style({
             "stroke-dashoffset": -state.currentFrameIdx / 3,
             "stroke-width": linkWidthScale(Math.abs(link.weight)),
@@ -249,21 +279,24 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
 
   function makeClickCallback(canvas, _nodeId: string) {
     return function () {
-      state.tokenState[_nodeId] = !state.tokenState[_nodeId];
-      state.context.push(parseInt(nodeId))
-      if (state.context.length > gd.currentConfig.n_ctx) {
-        state.context.shift()
+      if (state.useContext) {
+        state.context.push(parseInt(nodeId))
+        if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
+        d3.select("#context").text(`${state.context}`)
       }
-      d3.select("#context").text(`${state.context}`)
-      if (state.tokenState[_nodeId]) canvas.classed("active", true);
-      else canvas.classed("active", false);
+      else {
+        d3.select(`#canvas-${state.selectedTokenId}`)
+          .classed("active", false);
+        state.selectedTokenId = state.selectedTokenId == _nodeId ? null : _nodeId
+        canvas.classed("active", _nodeId == state.selectedTokenId);
+      }
       updateUI()
     }
   }
 
   function makeHoverCallback(canvas, _nodeId: string, entering: boolean) {
     return function () {
-      gs.selectedTokenId = entering ? _nodeId : state.selectedNodeId || _nodeId;
+      gs.activeTokenId = entering ? _nodeId : state.selectedTokenId;
       canvas.classed("hovered", entering);
       updateUI()
     }
@@ -312,7 +345,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
 
   function makeHoverCallback(canvas, _nodeId: string, entering: boolean) {
     return function () {
-      gs.inspectedNodeId = entering ? _nodeId : state.selectedNodeId || _nodeId;
+      gs.activeNodeId = entering ? _nodeId : state.selectedNodeId || _nodeId;
       canvas.classed("hovered", entering);
       updateUI()
     }
@@ -379,7 +412,7 @@ function drawNetwork(network: nn.Node[][]): void {
   let numLayers = network.length;
   let featureWidth = 118;
   let layerScale = d3.scale.ordinal<number, number>()
-    .domain(d3.range(1, numLayers - 1))
+    .domain(d3.range(1, numLayers))
     .rangePoints([featureWidth, width - RECT_SIZE], 0.7);
   let nodeIndexScale = (nodeIndex: number, dim: number) => nodeIndex * (dim + 25);
 
@@ -397,7 +430,7 @@ function drawNetwork(network: nn.Node[][]): void {
   });
 
   // Draw the intermediate layers.
-  for (let layerIdx = 1; layerIdx < numLayers - 1; layerIdx++) {
+  for (let layerIdx = 1; layerIdx < numLayers; layerIdx++) {
     let numNodes = network[layerIdx].length;
     let cx = layerScale(layerIdx) + RECT_SIZE / 2;
     maxY = Math.max(maxY, nodeIndexScale(numNodes, RECT_SIZE));
@@ -416,17 +449,6 @@ function drawNetwork(network: nn.Node[][]): void {
     }
   }
 
-  // Draw the output node separately.
-  cx = width + RECT_SIZE / 2;
-  let node = network[numLayers - 1][0];
-  let cy = nodeIndexScale(0, RECT_SIZE) + RECT_SIZE / 2;
-  node2coord[node.id] = { cx, cy };
-  // Draw links.
-  for (let i = 0; i < node.inputLinks.length; i++) {
-    let link = node.inputLinks[i];
-    drawLink(link, node2coord, network, container, i === 0, i,
-      node.inputLinks.length);
-  }
   // Adjust the height of the svg.
   svg.attr("height", maxY);
 
@@ -440,21 +462,21 @@ function getRelativeHeight(selection) {
   return node.offsetHeight + node.offsetTop;
 }
 
-function updateHoverCard(display: boolean, link?: nn.Link,
+function updateWeightsHover(display: boolean, link?: nn.Link,
   coordinates?: [number, number]) {
-  let hovercard = d3.select("#hovercard");
+  let weightsHover = d3.select("#attn-weights");
   if (!display) {
-    hovercard.style("display", "none");
+    weightsHover.style("display", "none");
     d3.select("#svg").on("click", null);
     return;
   }
   let value = (link as nn.Link).weight
-  hovercard.style({
+  weightsHover.style({
     "left": `${coordinates[0] + 20}px`,
     "top": `${coordinates[1]}px`,
     "display": "block"
   });
-  hovercard.select(".value")
+  weightsHover.select(".value")
     .style("display", null)
     .text(value.toPrecision(2));
 }
@@ -473,10 +495,10 @@ function drawLink(
   let datum = {
     source: {
       y: source.cx + dimension / 2,
-      x: source.cy
+      x: source.cy - 1
     },
     target: {
-      y: dest.cx - RECT_SIZE,
+      y: dest.cx - dimension,
       x: dest.cy + ((index - (length - 1) / 2) / length) * 12
     }
   };
@@ -494,9 +516,9 @@ function drawLink(
     .attr("d", diagonal(datum, 0))
     .attr("class", "link-hover")
     .on("mouseenter", function () {
-      updateHoverCard(true, input, d3.mouse(this));
+      updateWeightsHover(true, input, d3.mouse(this));
     }).on("mouseleave", function () {
-      updateHoverCard(null);
+      updateWeightsHover(null);
     });
   return line;
 }
@@ -505,17 +527,17 @@ function updateUI() {
   state.serialize();
 
   // Update the links
-  nn.updateWeights(gs.transformer, gd.currentFrame.blocks[0].attention, gs.selectedTokenId, state.selectedNodeId)
+  nn.updateWeights(gs.transformer, gd.currentFrame.blocks[0].attention, gs.activeTokenId, gs.activeNodeId)
   updateWeightsUI(gs.transformer, d3.select("g.core"));
 
   /** Update all heatmaps **/
-  let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.inspectedNodeId);
+  let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.activeNodeId);
   var blockKey = isOut ? "output" : "attention"
   gc.inspectHeatMap.updateBackground(matrix(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]));
 
   if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
     var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
-    console.log("Forward pass", forward)
+    // console.log("Forward pass", forward)
     gs.residualIds.map((id, idx) => gc.residuals[idx].updateBackground(forward[id]))
     gc.resultHeatMap.updateBackground(forward.unembed);
   }
@@ -628,6 +650,9 @@ function initialLoad() {
           })
           .catch(error => console.log(error))
       }
+      // d3.select("#experiment")
+      //   .attr("value", "sample")
+      //   .node().dispatchEvent(new CustomEvent('change'))
       console.log("All Experiments", gd.experiments)
     })
     .catch(error => console.log(error));
@@ -648,7 +673,9 @@ function loadData(experiment: string, filetag: string) {
     .then(data => {
       // console.log("Frames", data)
       gd.frames = data
-      gs.selectedTokenId = null
+      gs.activeTokenId = null
+      state.selectedTokenId = null
+      state.selectedNodeId = null
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)
       redraw();
