@@ -12,7 +12,7 @@
     "build-dev": "webpack --config webpack.config.js",
     "build": "NODE_ENV=production webpack --config webpack.config.js",
     "rebuild": "run-s clean css data img lib build-dev",
-    "serve": "webpack serve --open"
+    "serve-dev": "webpack serve --open"
   },
   "devDependencies": {
     "@types/d3": "^3.5.34",
