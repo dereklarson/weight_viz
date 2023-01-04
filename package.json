@@ -1,18 +1,16 @@
 {
   "name": "tlab-cinema",
-  "version": "2022.12",
+  "version": "0.0.1",
   "description": "",
   "private": true,
   "scripts": {
     "clean": "rimraf dist && mkdir dist",
-    "css": "cat node_modules/material-design-lite/material.min.css src/styles.css > dist/bundle.css",
+    "css": "cp node_modules/material-design-lite/material.min.css dist/",
     "data": "cp -r data dist/data",
-    "img": "cp assets/* dist/",
     "lib": "cp node_modules/material-design-lite/material.min.js dist/lib.js",
-    "build-dev": "webpack --config webpack.config.js",
-    "build": "NODE_ENV=production webpack --config webpack.config.js",
-    "rebuild": "run-s clean css data img lib build-dev",
-    "serve-dev": "webpack serve --open"
+    "stage": "run-s clean css data lib",
+    "serve-dev": "webpack serve --open",
+    "build": "NODE_ENV=production webpack --config webpack.config.js"
   },
   "devDependencies": {
     "@types/d3": "^3.5.34",

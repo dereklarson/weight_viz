@@ -20,7 +20,7 @@ import { LineChart } from "./linechart";
 import * as nn from "./nn";
 import { Player } from "./player";
 import { State } from "./state";
-import './styles.css';
+import './style.css';
 
 const TOKEN_SIZE = 20;
 const RECT_SIZE = 60;

@@ -11,9 +11,36 @@ const stylesHandler = isProduction
   : "style-loader";
 
 const config = {
-  entry: "./src/playground.ts",
+  context: path.resolve(__dirname, "src"),
+  entry: "./main.ts",
   output: {
     path: path.resolve(__dirname, "dist"),
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      favicon: "./assets/favicon.png",
+      template: "index.html",
+    }),
+  ],
+  module: {
+    rules: [
+      {
+        test: /\.(ts|tsx)$/i,
+        use: ["ts-loader"],
+        exclude: ["/node_modules/"],
+      },
+      {
+        test: /\.css$/i,
+        use: [stylesHandler, "css-loader"],
+      },
+      {
+        test: /\.(gif|jpg|jpeg|png|svg)$/i,
+        type: "asset/resource",
+      },
+    ],
+  },
+  resolve: {
+    extensions: [".tsx", ".ts", ".jsx", ".js", "..."],
   },
   devServer: {
     static: {
@@ -23,37 +50,6 @@ const config = {
     open: true,
     host: "localhost",
     hot: true,
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: "src/index.html",
-    }),
-
-    // Add your plugins here
-    // Learn more about plugins from https://webpack.js.org/configuration/plugins/
-  ],
-  module: {
-    rules: [
-      {
-        test: /\.(ts|tsx)$/i,
-        loader: "ts-loader",
-        exclude: ["/node_modules/"],
-      },
-      {
-        test: /\.css$/i,
-        use: [stylesHandler, "css-loader"],
-      },
-      {
-        test: /\.(eot|svg|ttf|woff|woff2|png|jpg|gif)$/i,
-        type: "asset",
-      },
-
-      // Add your rules for custom modules here
-      // Learn more about loaders from https://webpack.js.org/loaders/
-    ],
-  },
-  resolve: {
-    extensions: [".tsx", ".ts", ".jsx", ".js", "..."],
   },
 };
 

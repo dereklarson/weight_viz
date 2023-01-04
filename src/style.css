@@ -72,7 +72,7 @@ body {
   height: 100%;
   position: fixed;
   z-index: 100;
-  background: url("./loader.gif") no-repeat center center rgba(0, 0, 0, 0.25)
+  background: url("./assets/loader.gif") no-repeat center center rgba(0, 0, 0, 0.25)
 }
 
 .hidden {
@@ -120,13 +120,8 @@ body {
 
 .button {
   cursor: pointer;
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   align-items: center;
-  -webkit-justify-content: center;
   justify-content: center;
   width: 24px;
   height: 24px;
@@ -256,24 +251,14 @@ header h1 .optional {
 }
 
 #top-controls .container {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   -webkit-justify-content: space-betweenspace-between;
   justify-content: space-between;
 }
 
 #top-controls .timeline-controls {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   align-items: center;
-  margin-right: 20px;
-  width: 140px;
 }
 
 #play-pause-button .material-icons {
@@ -326,6 +311,11 @@ header h1 .optional {
 
 #top-controls .control .ui-scrubber {
   display: block;
+}
+
+/** TODO Fix manual alignment of slider and label */
+#top-controls .ui-scrubber .label {
+  margin-left: 26px;
 }
 
 #top-controls .control .select {
@@ -398,10 +388,6 @@ header h1 .optional {
 /* Main Part*/
 
 #main-part {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   -webkit-justify-content: space-between;
   justify-content: space-between;
@@ -418,10 +404,6 @@ header h1 .optional {
 }
 
 #main-part h4 {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   align-items: center;
   font-weight: 400;
@@ -506,10 +488,6 @@ g.column rect {
 /* Data column */
 
 .vcenter {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   align-items: center;
 }
@@ -781,10 +759,6 @@ g.column rect {
 /* Residual tracking */
 
 #residual-box {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   -webkit-justify-content: space-between;
   justify-content: space-between;
@@ -795,10 +769,6 @@ g.column rect {
 }
 
 #residual-box h4 {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
   display: flex;
   align-items: center;
   font-weight: 400;
@@ -955,15 +925,15 @@ g.test circle {
   background-color: #183D4E;
 }
 
-#main-part .mdl-slider.is-upgraded.is-lowest-value::-webkit-slider-thumb {
+/* #main-part .mdl-slider.is-upgraded.is-lowest-value::-webkit-slider-thumb {
   border-color: #183D4E;
 }
 
 #main-part .mdl-slider.is-upgraded.is-lowest-value::-moz-range-thumb {
   border-color: #183D4E;
-}
+} */
 
 /* Keep grey focus circle for non-start values */
-#main-part .mdl-slider.is-upgraded:focus:not(:active)::-webkit-slider-thumb {
+/* #main-part .mdl-slider.is-upgraded:focus:not(:active)::-webkit-slider-thumb {
   box-shadow: 0 0 0 10px rgba(0, 0, 0, 0.12);
-}
+} */
