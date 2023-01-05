@@ -127,7 +127,7 @@ limitations under the License.
     </div>
 
     <!-- Token Inputs Column -->
-    <div class="column features">
+    <div class="column tokens">
       <h4>Token Inputs</h4>
       <p>The set of tokens and their interactions</p>
       <div id="network">
@@ -158,8 +158,8 @@ limitations under the License.
       <div class="bracket"></div>
     </div>
 
-    <!-- Output Column -->
-    <div class="column output">
+    <!-- Inspection Column -->
+    <div class="column inspection">
       <h4>Inspection</h4>
       <div class="metrics">
         <div class="output-stats test">
@@ -176,6 +176,7 @@ limitations under the License.
         </div>
         <div id="linechart"></div>
       </div>
+      <h4 id="inspect-label"></h4>
       <div id="heatmap"></div>
       <div style="float:left;margin-top:20px">
         <div style="display:flex; align-items:center;">
@@ -207,7 +208,7 @@ limitations under the License.
       <p>Positonal Embedding</p>
       <div id="position" class="residual-canvas"></div>
     </div>
-    <div class="column features">
+    <div class="column tokens">
       <h4>Context: [<span class="value" id="context"></span>]</h4>
       <p>Embedding</p>
       <div id="embedding" class="residual-canvas"></div>
@@ -225,7 +226,7 @@ limitations under the License.
         </div>
       </div>
     </div>
-    <div id="residual-output" class="column output">
+    <div id="residual-output" class="column inspection">
       <h4>Output</h4>
       <p>unembed</p>
       <div id="unembed" class="residual-canvas"></div>

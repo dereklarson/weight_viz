@@ -408,8 +408,8 @@ function drawNetwork(network: nn.Node[][]): void {
 
   // Get the width of the svg container.
   let padding = 3;
-  let co = d3.select(".column.output").node() as HTMLDivElement;
-  let cf = d3.select(".column.features").node() as HTMLDivElement;
+  let co = d3.select(".column.inspection").node() as HTMLDivElement;
+  let cf = d3.select(".column.tokens").node() as HTMLDivElement;
   let width = co.offsetLeft - cf.offsetLeft;
   svg.attr("width", width);
 
@@ -589,6 +589,7 @@ function updateUI() {
   d3.select("#loss-train").text(logHumanReadable(gd.currentFrame.lossTrain));
   d3.select("#loss-test").text(logHumanReadable(gd.currentFrame.lossTest));
   d3.select("#accuracy-test").text((gd.currentFrame.accuracyTest * 100).toFixed(0));
+  d3.select("#inspect-label").text(`Head: ${gs.activeNodeId.replace('_', '.')}`);
   d3.select("#epoch-number").text(addCommas(zeroPad(gd.currentFrame.epoch)));
 }
 

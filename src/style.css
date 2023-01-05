@@ -589,14 +589,14 @@ g.column rect {
   color: rgba(0, 0, 0, 0.8);
 }
 
-/* Features column */
+/* Token Inputs column */
 
-.features.column {
+.tokens.column {
   width: 10%;
   position: relative;
 }
 
-.features.column .plus-minus-neurons {
+.tokens.column .plus-minus-neurons {
   position: absolute;
   text-align: center;
   line-height: 28px;
@@ -611,39 +611,39 @@ g.column rect {
   margin-right: 5px;
 }
 
-.features.column .callout {
+.tokens.column .callout {
   position: absolute;
   width: 95px;
   font-style: italic;
 }
 
-.features.column .callout svg {
+.tokens.column .callout svg {
   position: absolute;
   left: -15px;
   width: 30px;
   height: 30px;
 }
 
-.features.column .callout svg path {
+.tokens.column .callout svg path {
   fill: none;
   stroke: black;
   stroke-opacity: 0.4;
 }
 
-.features.column .callout svg defs path {
+.tokens.column .callout svg defs path {
   fill: black;
   stroke: none;
   fill-opacity: 0.4;
 }
 
-#main-part .features.column .callout .label {
+#main-part .tokens.column .callout .label {
   position: absolute;
   top: 24px;
   left: 3px;
   font-size: 11px;
 }
 
-/* Network (inside features column) */
+/* Network (inside tokens column) */
 
 #network {
   position: absolute;
@@ -814,9 +814,9 @@ g.column rect {
   margin-bottom: 5px;
 }
 
-/* Output column */
+/* Inspection column */
 
-.output.column {
+.inspection.column {
   width: 275px;
 }
 
@@ -827,6 +827,14 @@ g.column rect {
   height: 60px;
 }
 
+.metrics .test {
+  color: #777;
+}
+
+#inspect-label {
+  padding-top: 20px;
+}
+
 #linechart {
   position: absolute;
   top: 0;
@@ -835,20 +843,10 @@ g.column rect {
   height: 55px;
 }
 
-.metrics .train {
-  color: black;
-}
-
-#loss-test {
-  color: #777;
-}
-
-.output .output-stats .value {
+.inspection .output-stats .value {
   color: rgba(0, 0, 0, 0.6);
-  /*font-size: 20px;*/
   font-weight: 300;
   display: inline;
-
 }
 
 g.train circle {
@@ -863,10 +861,6 @@ g.test circle {
   stroke: black;
   stroke-opacity: 0.6;
   fill-opacity: 0.9;
-}
-
-#main-part .output .mdl-checkbox__label.label {
-  line-height: 1.7em;
 }
 
 /*** Material Overrides ***/
