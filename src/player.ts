@@ -15,17 +15,10 @@ export class Player {
     }
 
     playOrPause() {
-        if (this.isPlaying) {
-            this.isPlaying = false;
-            this.pause();
-        } else {
-            this.isPlaying = true;
-            this.play();
-        }
+        this.isPlaying ? this.pause() : this.play()
     }
 
     play() {
-        this.pause();
         this.isPlaying = true;
         if (this.callback) {
             this.callback(this.isPlaying);

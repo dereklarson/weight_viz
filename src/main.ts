@@ -165,7 +165,11 @@ function makeGUI() {
   )
 
   /* The Player controls: play/pause, reset, and step left or right */
-  d3.select("#play-pause-button").on("click", () => gc.player.playOrPause());
+  d3.select("#play-pause-button").on("click", () => {
+    // If play is pressed at the last frame, reset to zero automatically
+    if (state.currentFrameIdx === gd.frames.length - 1) setFrame(0)
+    gc.player.playOrPause()
+  });
 
   gc.player.onPlayPause(isPlaying => {
     d3.select("#play-pause-button").classed("playing", isPlaying);
@@ -589,6 +593,7 @@ function updateUI() {
 }
 
 function setFrame(frameIdx: number): void {
+  if (frameIdx < 0) frameIdx = Math.max(0, gd.frames.length + frameIdx)
   state.currentFrameIdx = frameIdx;
   gd.currentFrame = gd.frames[state.currentFrameIdx]
   gc.lineChart.setCursor(state.currentFrameIdx)
@@ -634,7 +639,7 @@ function redraw() {
   let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
   gs.transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
   drawNetwork(gs.transformer);
-  setFrame(0);
+  setFrame(-1);
   updateUI();
 };
 
