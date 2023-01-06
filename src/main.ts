@@ -549,6 +549,7 @@ function updateUI() {
     // console.log("Forward pass", forward)
     gs.residualIds.map((id, idx) => gc.residuals[idx].updateBackground(forward[id]))
     gc.resultHeatMap.updateBackground(forward.unembed);
+    d3.select("#output-value").text(forward.result);
   }
 
   // Update all attention and output patterns for nodes.
@@ -582,7 +583,7 @@ function updateUI() {
 
   d3.select("#experiment").property("value", state.experiment)
   d3.select("#configuration").property("value", state.currentTag)
-  d3.select("#context").text(`${state.context}`)
+  d3.select("#context-value").text(`${state.context}`)
   d3.select(`#${state.currentTab}Tab`).classed("active", true);
   d3.select("#scrubber").property('value', state.currentFrameIdx)
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))

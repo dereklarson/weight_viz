@@ -162,8 +162,11 @@ export function forward(context: number[], frame: WFrame, config: TransformerCon
     }
   }
   var unembed = multiply(block1, frame.unembedding)
+  // Calculate Argmax of the last row of the final residual
+  let resRow = unembed.toArray()[unembed.size()[0] - 1]
+  let result = resRow.indexOf(Math.max(...resRow))
 
-  return { position, embedding, preBlock, block1, unembed, attn_weights }
+  return { position, embedding, preBlock, block1, unembed, attn_weights, result }
 }
 
 function aggProbs(matrix: Array2D) {
