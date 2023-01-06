@@ -123,7 +123,6 @@ function updateExpHover(display: boolean, coordinates?: [number, number]) {
     "top": `${coordinates[1]}px`,
     "display": "block"
   });
-  // expNotes.select(".value").style("display", null)
 }
 
 function makeGUI() {
@@ -199,6 +198,7 @@ function makeGUI() {
     state.serialize();
     d3.select("#residual-box").classed("hidden", !this.checked)
     redraw()
+    updateUI();
   });
   useContext.property("checked", state.useContext);
   d3.select("#residual-box").classed("hidden", !state.useContext)
@@ -334,7 +334,7 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
 function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.Node) {
   let x = cx - RECT_SIZE;
   let y = cy - RECT_SIZE / 2;
-  let rows = gd.currentConfig.n_vocab;
+  let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
   let cols = rows;
 
   let nodeGroup = container.append("g")
@@ -541,14 +541,15 @@ function updateUI() {
 
   /** Update all heatmaps **/
   let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.activeNodeId);
-  var blockKey = isOut ? "output" : "attention"
-  gc.inspectHeatMap.updateBackground(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
+  let blockKey = isOut ? "output" : "attention"
+  if (state.useContext) blockKey = isOut ? "ov" : "qk"
+  gc.inspectHeatMap.updateGraph(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
 
   if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
     var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
     // console.log("Forward pass", forward)
-    gs.residualIds.map((id, idx) => gc.residuals[idx].updateBackground(forward[id]))
-    gc.resultHeatMap.updateBackground(forward.unembed);
+    gs.residualIds.map((id, idx) => gc.residuals[idx].updateGraph(forward[id]))
+    gc.resultHeatMap.updateGraph(forward.unembed);
     d3.select("#output-value").text(forward.result);
   }
 
@@ -561,10 +562,11 @@ function updateUI() {
         frameData = [gd.currentFrame.embedding[blockIdx]]
       }
       else {
-        var blockKey = isOut ? "output" : "attention"
+        blockKey = isOut ? "output" : "attention"
+        if (state.useContext) blockKey = isOut ? "ov" : "qk"
         frameData = gd.currentFrame.blocks[blockIdx][blockKey][headIdx]
       }
-      data.heatmap.updateBackground(frameData)
+      data.heatmap.updateGraph(frameData)
     });
 
   function zeroPad(n: number): string {
@@ -633,7 +635,9 @@ function redraw() {
   var ccfg = gd.currentConfig
   gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
   gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
-  gc.inspectHeatMap = new HeatMap(300, ccfg.n_vocab, ccfg.n_vocab, d3.select("#heatmap"), { showAxes: true });
+  let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
+  let cols = rows;
+  gc.inspectHeatMap = new HeatMap(300, rows, cols, d3.select("#heatmap"), { showAxes: true });
   gc.residuals = gs.residualIds.map((id) =>
     new HeatMap(100, ccfg.n_ctx, ccfg.d_embed, d3.select(`#${id}`), { maxHeight: 60 })
   )
@@ -641,8 +645,6 @@ function redraw() {
   let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
   gs.transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
   drawNetwork(gs.transformer);
-  setFrame(-1);
-  updateUI();
 };
 
 function initialLoad() {
@@ -692,6 +694,8 @@ function loadData(experiment: string, filetag: string) {
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)
       redraw();
+      setFrame(-1);
+      updateUI();
     })
     .catch(error => console.log(error));
 }

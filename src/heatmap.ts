@@ -146,7 +146,7 @@ export class HeatMap {
     }
   }
 
-  updateBackground(_data: Matrix | number[][]): void {
+  updateGraph(_data: Matrix | number[][]): void {
     let data = matrix(_data)
     let [dy, dx] = data.size()
 
