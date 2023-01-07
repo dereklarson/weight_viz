@@ -363,8 +363,8 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
 
   // Draw the node's attention and output canvases.
   let attnId = nodeId + "_0";
-  let attn_canvas = d3.select("#network").insert("div", ":first-child")
-  attn_canvas
+  let attnCanvas = d3.select("#network").insert("div", ":first-child")
+  attnCanvas
     .attr({
       "id": `canvas-${attnId}`,
       "class": "canvas"
@@ -374,15 +374,15 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + 3}px`,
       top: `${y + 3}px`
     })
-    .on("click", makeClickCallback(attn_canvas, attnId))
-    .on("mouseenter", makeHoverCallback(attn_canvas, attnId, true))
-    .on("mouseleave", makeHoverCallback(attn_canvas, attnId, false))
-  let attnHeatMap = new HeatMap(RECT_SIZE, rows, cols, attn_canvas, { noSvg: true });
-  attn_canvas.datum({ heatmap: attnHeatMap, id: attnId });
+    .on("click", makeClickCallback(attnCanvas, attnId))
+    .on("mouseenter", makeHoverCallback(attnCanvas, attnId, true))
+    .on("mouseleave", makeHoverCallback(attnCanvas, attnId, false))
+  let attnHeatMap = new HeatMap(RECT_SIZE, rows, cols, attnCanvas, { noSvg: true });
+  attnCanvas.datum({ heatmap: attnHeatMap, id: attnId });
 
   var outputId = nodeId + "_1"
-  let output_canvas = d3.select("#network").insert("div", ":first-child")
-  output_canvas
+  let outputCanvas = d3.select("#network").insert("div", ":first-child")
+  outputCanvas
     .attr({
       "id": `canvas-${outputId}`,
       "class": "canvas"
@@ -392,11 +392,11 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
       left: `${x + RECT_SIZE + 8}px`,
       top: `${y + 3}px`
     })
-    .on("click", makeClickCallback(output_canvas, outputId))
-    .on("mouseenter", makeHoverCallback(output_canvas, outputId, true))
-    .on("mouseleave", makeHoverCallback(output_canvas, outputId, false))
-  let outputHeatMap = new HeatMap(RECT_SIZE, rows, cols, output_canvas, { noSvg: true });
-  output_canvas.datum({ heatmap: outputHeatMap, id: outputId });
+    .on("click", makeClickCallback(outputCanvas, outputId))
+    .on("mouseenter", makeHoverCallback(outputCanvas, outputId, true))
+    .on("mouseleave", makeHoverCallback(outputCanvas, outputId, false))
+  let outputHeatMap = new HeatMap(RECT_SIZE, rows, cols, outputCanvas, { noSvg: true });
+  outputCanvas.datum({ heatmap: outputHeatMap, id: outputId });
 }
 
 function drawNetwork(network: nn.Node[][]): void {
@@ -531,6 +531,7 @@ function drawLink(
     });
   return line;
 }
+
 
 function updateUI() {
   state.serialize();

@@ -317,6 +317,29 @@ header h1 .optional {
   width: 300px;
 }
 
+.tooltip {
+  position: absolute;
+  padding: 5px;
+  border: 1px solid #aaa;
+  z-index: 1000;
+  background: #fff;
+  cursor: default;
+  border-radius: 5px;
+}
+
+#matrix-tooltip {
+  background: rgba(158, 158, 158, .1);
+  font-size: smaller;
+  border-collapse: collapse;
+}
+
+#matrix-tooltip td {
+  border: 1px solid #aaa;
+  padding: 8px;
+  height: auto;
+}
+
+
 /* Main Part*/
 
 #main-part {

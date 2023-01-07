@@ -27,6 +27,8 @@ export interface HeatMapSettings {
 
 // Original Orange -> Grey -> Blue scheme
 let colorArray = ["#f59322", "#e8eaeb", "#0877bd"]
+let tooltipTimer;
+
 export let colorScale = d3.scale.linear<string, string>()
   .domain([-1, 0, 1])
   .range(colorArray)
@@ -36,6 +38,37 @@ export let colorScale = d3.scale.linear<string, string>()
 d3.select("#gradient").selectAll("stop").each(function (d, idx) {
   d3.select(this).attr("stop-color", colorArray[idx])
 })
+
+function makeMatrixTable(container, matrix) {
+  container.selectAll("table").remove()
+  let table = container.append("table").attr({ "id": "matrix-tooltip" })
+  for (var i = 0; i < matrix.size()[0]; i++) {
+    let row = table.append("tr")
+    for (var j = 0; j < matrix.size()[1]; j++) {
+      row.append("td").text(matrix.get([i, j]).toFixed(3))
+    }
+  }
+}
+
+function addTooltip(container, self) {
+  let tooltip = d3.select("#network-tooltip").text("Matrix contents")
+
+  function makeHoverCallback(_entering: boolean) {
+    return function () {
+      clearTimeout(tooltipTimer)
+      if (_entering) {
+        makeMatrixTable(tooltip, self.data)
+        tooltipTimer = setTimeout(() => tooltip.classed("hidden", false), 1000)
+      }
+      else {
+        tooltip.classed("hidden", true)
+      }
+    }
+  }
+  container
+    .on("mouseenter", makeHoverCallback(true))
+    .on("mouseleave", makeHoverCallback(false))
+}
 
 /**
  * Draws a heatmap using canvas. Used for showing the learned decision
@@ -53,6 +86,7 @@ export class HeatMap {
   private colorScale;
   private canvas;
   private svg;
+  public data;
 
   constructor(
     width: number, nRow: number, nCol: number,
@@ -94,6 +128,8 @@ export class HeatMap {
       .style("position", "absolute")
       // 'image-rendering: pixelated' avoids blurring between datapoints on scaling
       .style("image-rendering", "pixelated");
+
+    addTooltip(container, this)
 
     if (!this.settings.noSvg) {
       this.svg = container.append("svg").attr({
@@ -148,6 +184,7 @@ export class HeatMap {
 
   updateGraph(_data: Matrix | number[][]): void {
     let data = matrix(_data)
+    this.data = data
     let [dy, dx] = data.size()
 
     if (dx !== this.nCol || dy !== this.nRow) {
