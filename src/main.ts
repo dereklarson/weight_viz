@@ -35,6 +35,7 @@ interface GlobalData {
   frames: nn.WFrame[],
   currentConfig: nn.TransformerConfig,
   currentFrame: nn.WFrame,
+  activeVocab: string[],
 }
 
 let gd: GlobalData = {
@@ -43,6 +44,7 @@ let gd: GlobalData = {
   frames: undefined,
   currentConfig: undefined,
   currentFrame: undefined,
+  activeVocab: undefined,
 }
 
 interface GlobalComponents {
@@ -67,6 +69,8 @@ interface GlobalSettings {
   residualIds: string[],
   paramTabs: string[]
   transformer: nn.Node[][],
+  maxTokens: number,
+  maxHeads: number,
 }
 
 let gs: GlobalSettings = {
@@ -75,6 +79,8 @@ let gs: GlobalSettings = {
   residualIds: ["position", "embedding", "preBlock", "block1"],
   paramTabs: ["model", "data", "train"],
   transformer: null,
+  maxTokens: 10,
+  maxHeads: 5,
 }
 
 // State contains variables we can load from the URL
@@ -162,6 +168,7 @@ function makeGUI() {
     state.currentTab = tabName;
     d3.select(`#${tabName}Tab`).classed("active", true);
     setExperimentalParams()
+    state.serialize();
   }
 
   gs.paramTabs.forEach(name =>
@@ -429,8 +436,8 @@ function drawNetwork(network: nn.Node[][]): void {
   let yDim = TOKEN_SIZE;
   var indent = 30;
   let cx = xDim / 2 + indent;
-  let maxY = nodeIndexScale(gd.currentConfig.vocabulary.length, yDim);
-  gd.currentConfig.vocabulary.forEach((nodeId, i) => {
+  let maxY = nodeIndexScale(gd.activeVocab.length, yDim);
+  gd.activeVocab.forEach((nodeId, i) => {
     let cy = nodeIndexScale(i, yDim) + yDim / 2;
     drawTokenNode(cx, cy, nodeId, container);
     cy -= 5;
@@ -439,7 +446,7 @@ function drawNetwork(network: nn.Node[][]): void {
 
   // Draw the intermediate layers.
   for (let layerIdx = 1; layerIdx < numLayers; layerIdx++) {
-    let numNodes = network[layerIdx].length;
+    let numNodes = network[layerIdx].length
     let cx = layerScale(layerIdx) + RECT_SIZE / 2;
     maxY = Math.max(maxY, nodeIndexScale(numNodes, RECT_SIZE));
     for (let i = 0; i < numNodes; i++) {
@@ -632,6 +639,8 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 
 function redraw() {
   var ccfg = gd.currentConfig
+  gd.activeVocab = gd.currentConfig.vocabulary.slice(0, gs.maxTokens)
+
   gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
   gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
   let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
@@ -642,7 +651,7 @@ function redraw() {
   )
   gc.resultHeatMap = new HeatMap(150, ccfg.n_ctx, ccfg.n_vocab, d3.select("#unembed"))
   let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
-  gs.transformer = nn.buildNetwork(shape, gd.currentConfig.vocabulary);
+  gs.transformer = nn.buildNetwork(shape, gd.activeVocab, gs.maxHeads);
   drawNetwork(gs.transformer);
 };
 

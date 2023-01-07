@@ -108,12 +108,12 @@ export class Link {
  * @param tokens List of ids for the input nodes. This might be a selection
  *   of the vocabulary, or the current context.
  */
-export function buildNetwork(blocks: number[], tokens: string[]): Node[][] {
+export function buildNetwork(blocks: number[], tokens: string[], maxHeads: number): Node[][] {
   let network: Node[][] = [tokens.map(token => new Node(token))];
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
     let currentBlock: Node[] = [];
     network.push(currentBlock);
-    let numNodes = blocks[blockIdx];
+    let numNodes = Math.min(blocks[blockIdx], maxHeads);
     for (let i = 0; i < numNodes; i++) {
       let node = new Node(`${blockIdx}_${i}`)
       currentBlock.push(node);
