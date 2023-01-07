@@ -159,6 +159,7 @@ export class HeatMap {
         .range([0, yDim * (nCol - 1) / nCol]);
 
       var xAxis = d3.svg.axis()
+        .ticks(nRow - 1)
         .scale(xScale)
         .orient("bottom");
 
@@ -167,6 +168,7 @@ export class HeatMap {
         .range([0, xDim * (nRow - 1) / nRow]);
 
       var yAxis = d3.svg.axis()
+        .ticks(nCol - 1)
         .scale(yScale)
         .orient("right");
 
