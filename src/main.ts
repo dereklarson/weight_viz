@@ -125,6 +125,15 @@ function updateExpHover(display: boolean, coordinates?: [number, number]) {
   });
 }
 
+function addConfigurationOptions() {
+  let configuration = d3.select("#configuration")
+  configuration.selectAll("option").remove()
+  gd.experiments[state.experiment].tags.forEach(tag => {
+    let name = tag === "default" ? "Default" : parseTag(tag)
+    configuration.append("option").text(name).attr("value", tag)
+  })
+}
+
 function makeGUI() {
   /* Two dropdown menus to select the Experiment and Configuration */
   let configuration = d3.select("#configuration").on("input", function () {
@@ -141,11 +150,7 @@ function makeGUI() {
     .on("change", function () {
       state.experiment = this.value;
       state.currentTag = gd.experiments[state.experiment].tags[0];
-      configuration.selectAll("option").remove()
-      gd.experiments[state.experiment].tags.forEach(tag => {
-        let name = tag === "default" ? "Default" : parseTag(tag)
-        configuration.append("option").text(name).attr("value", tag)
-      })
+      addConfigurationOptions()
       d3.select("#exp-notes").select(".text")
         .text(gd.experiments[state.experiment].notes);
       loadData(state.experiment, state.currentTag);
@@ -202,13 +207,6 @@ function makeGUI() {
   });
   useContext.property("checked", state.useContext);
   d3.select("#residual-box").classed("hidden", !state.useContext)
-
-  let usePosEmbed = d3.select("#use-pos-embed").on("change", function () {
-    state.usePosEmbed = this.checked;
-    state.serialize();
-    updateUI()
-  });
-  usePosEmbed.property("checked", state.usePosEmbed);
 
   // Add scale to the gradient color map.
   let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);
@@ -648,16 +646,18 @@ function redraw() {
   drawNetwork(gs.transformer);
 };
 
+/** Loads the static data listing all experiments and tag values */
 function initialLoad() {
   fetch('./data/tag_glossary.json')
     .then(response => response.json())
     .then(data => gd.tagGlossary = data)
 
-  fetch('./data/contents.json')
+  return fetch('./data/contents.json')
     .then(response => response.json())
     .then(contents => {
       let exp_selector = d3.select("#experiment")
-      for (let exp_name of contents) {
+      // for (let exp_name of contents) {
+      let res = contents.map((exp_name) =>
         fetch(`./data/${exp_name}.json`)
           .then(response => response.json())
           .then(data => {
@@ -665,15 +665,15 @@ function initialLoad() {
             exp_selector.append("option").text(data.name).attr("value", exp_name)
           })
           .catch(error => console.log(error))
-      }
-      // d3.select("#experiment")
-      //   .attr("value", "sample")
-      //   .node().dispatchEvent(new CustomEvent('change'))
-      console.log("All Experiments", gd.experiments)
+      )
+      Promise.all(res).then(() =>
+        console.log("All Experiments", gd.experiments)
+      )
     })
     .catch(error => console.log(error));
 }
 
+/** Load an experiment's full data */
 function loadData(experiment: string, filetag: string) {
   console.log("Loading experiment/tag:", experiment, filetag)
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
@@ -695,6 +695,7 @@ function loadData(experiment: string, filetag: string) {
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)
       redraw();
+      addConfigurationOptions()
       setFrame(-1);
       updateUI();
     })
@@ -702,5 +703,6 @@ function loadData(experiment: string, filetag: string) {
 }
 
 makeGUI();
-initialLoad();
-loadData(state.experiment, state.currentTag);
+initialLoad().then(() =>
+  loadData(state.experiment, state.currentTag)
+)

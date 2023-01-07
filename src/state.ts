@@ -41,7 +41,6 @@ export class State {
     { name: "currentTab", type: Type.STRING },
     // { name: "currentFrameIdx", type: Type.NUMBER },
     { name: "useContext", type: Type.BOOLEAN },
-    { name: "usePosEmbed", type: Type.BOOLEAN },
   ];
 
   experiment: string = "sample";
@@ -49,7 +48,6 @@ export class State {
   currentTab: string = "model";
   currentFrameIdx: number = 0;
   useContext: boolean = false;
-  usePosEmbed: boolean = false;
 
   // Should we serialize the following?
   selectedTokenId: string = null;
