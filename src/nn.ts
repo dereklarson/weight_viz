@@ -54,14 +54,16 @@ export interface WFrame {
  */
 export class Node {
   id: string;
+  label: string;
   inputLinks: Link[] = [];
   outputs: Link[] = [];
   totalInput: number;
   output: number;
 
   // Creates a new node with the provided id
-  constructor(id: string) {
+  constructor(id: string, label: string = "") {
     this.id = id;
+    this.label = label;
   }
 
   /** Recomputes the node's output and returns it. */
@@ -109,7 +111,7 @@ export class Link {
  *   of the vocabulary, or the current context.
  */
 export function buildNetwork(blocks: number[], tokens: string[], maxHeads: number): Node[][] {
-  let network: Node[][] = [tokens.map(token => new Node(token))];
+  let network: Node[][] = [tokens.map((name, idx) => new Node(String(idx), name))];
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
     let currentBlock: Node[] = [];
     network.push(currentBlock);
@@ -169,9 +171,9 @@ export function forward(context: number[], frame: WFrame, config: TransformerCon
   return { position, embedding, preBlock, block1, unembed, attn_weights, result }
 }
 
-function aggProbs(matrix: Array2D) {
+function aggProbs(qkMatrix: Array2D) {
   var sum = (base, acc) => base.map((val, idx) => acc[idx] + val)
-  var weights = matrix.reduce(sum)
+  var weights = qkMatrix.reduce(sum)
   return softmax(weights)
 }
 

@@ -43,8 +43,8 @@ export class State {
     { name: "useContext", type: Type.BOOLEAN },
   ];
 
-  experiment: string = "sample";
-  currentTag: string = "default";
+  experiment: string = "parity";
+  currentTag: string = "de@2_nh@1";
   currentTab: string = "model";
   currentFrameIdx: number = 0;
   useContext: boolean = false;

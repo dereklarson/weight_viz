@@ -317,6 +317,11 @@ header h1 .optional {
   width: 300px;
 }
 
+#info-icon {
+  scale: 70%;
+  padding-left: 10px;
+}
+
 .tooltip {
   position: absolute;
   padding: 5px;

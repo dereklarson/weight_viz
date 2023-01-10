@@ -33,7 +33,10 @@ limitations under the License.
     <div class="container l--page">
       <!-- Experiment Selection -->
       <div class="control ui-experiment">
-        <label for="experiment">Experiment</label>
+        <div style="display:flex">
+          <label for="experiment">Experiment</label>
+          <i id="info-icon" class="material-icons">info</i>
+        </div>
         <div class="select">
           <select id="experiment"></select>
           <div id="exp-notes" class="hovercard">
@@ -127,7 +130,8 @@ limitations under the License.
     <!-- Token Inputs Column -->
     <div class="column tokens">
       <h4>Token Inputs</h4>
-      <p>The set of tokens and their interactions</p>
+      <p class="vocab-label">The selected token subset of the vocabulary</p>
+      <p class="context-label hidden">The current context</p>
       <div id="network">
         <svg id="svg" width="510" height="450">
           <defs>
@@ -152,9 +156,9 @@ limitations under the License.
 
     <!-- Transformer Blocks Column -->
     <div class="column blocks" style="width: 40%">
-      <h4>
-        <span id="layers-label">Transformer Blocks</span>
-      </h4>
+      <h4>Transformer Blocks</h4>
+      <p class="vocab-label">Displaying the token attention and output matrices for each attention head</p>
+      <p class="context-label hidden">Displaying the QK and OV matrices for each attention head</p>
       <div class="bracket"></div>
     </div>
 

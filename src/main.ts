@@ -75,7 +75,7 @@ interface GlobalSettings {
 
 let gs: GlobalSettings = {
   activeTokenId: null,
-  activeNodeId: "0_0",
+  activeNodeId: "0_0_0",
   residualIds: ["position", "embedding", "preBlock", "block1"],
   paramTabs: ["model", "data", "train"],
   transformer: null,
@@ -102,7 +102,7 @@ function titleCase(str: string) {
 
 let paramKeys = {
   data: ["operation", "seed", "training_fraction", "value_range", "dist_style", "value_count"],
-  model: ["d_embed", "d_head", "d_mlp", "n_ctx", "n_heads", "n_blocks"],
+  model: ["d_embed", "d_head", "d_mlp", "n_ctx", "n_heads", "n_blocks", "use_position"],
   train: ["learning_rate", "weight_decay", "n_epochs"],
 }
 
@@ -148,11 +148,6 @@ function makeGUI() {
   });
 
   d3.select("#experiment")
-    .on("mouseenter", function () {
-      updateExpHover(true, d3.mouse(this));
-    }).on("mouseleave", function () {
-      updateExpHover(null)
-    })
     .on("change", function () {
       state.experiment = this.value;
       state.currentTag = gd.experiments[state.experiment].tags[0];
@@ -161,6 +156,13 @@ function makeGUI() {
         .text(gd.experiments[state.experiment].notes);
       loadData(state.experiment, state.currentTag);
     });
+
+  d3.select("#info-icon")
+    .on("mouseenter", function () {
+      updateExpHover(true, d3.mouse(this));
+    }).on("mouseleave", function () {
+      updateExpHover(null)
+    })
 
   /* The Parameters table: Tab row at top */
   function setTab(tabName: string) {
@@ -209,6 +211,8 @@ function makeGUI() {
     state.useContext = this.checked;
     state.serialize();
     d3.select("#residual-box").classed("hidden", !this.checked)
+    d3.selectAll(".vocab-label").classed("hidden", this.checked)
+    d3.selectAll(".context-label").classed("hidden", !this.checked)
     redraw()
     updateUI();
   });
@@ -290,7 +294,7 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
     x: -10,
     y: TOKEN_SIZE / 2, "text-anchor": "end"
   });
-  text.append("tspan").text(nodeId)
+  text.append("tspan").text(node.label)
 
   function makeClickCallback(canvas, _nodeId: string) {
     return function () {
@@ -436,10 +440,13 @@ function drawNetwork(network: nn.Node[][]): void {
   let yDim = TOKEN_SIZE;
   var indent = 30;
   let cx = xDim / 2 + indent;
-  let maxY = nodeIndexScale(gd.activeVocab.length, yDim);
-  gd.activeVocab.forEach((nodeId, i) => {
+
+  let inputs = gd.activeVocab
+  if (state.useContext) inputs = state.context.map(i => String(i))
+  let maxY = nodeIndexScale(inputs.length, yDim);
+  inputs.forEach((nodeId, i) => {
     let cy = nodeIndexScale(i, yDim) + yDim / 2;
-    drawTokenNode(cx, cy, nodeId, container);
+    drawTokenNode(cx, cy, nodeId, container, network[0][i]);
     cy -= 5;
     node2coord[nodeId] = { cx, cy };
   });
@@ -457,6 +464,7 @@ function drawNetwork(network: nn.Node[][]): void {
 
       // Draw links.
       for (let j = 0; j < node.inputLinks.length; j++) {
+        if (!inputs.includes(String(j))) continue
         drawLink(node.inputLinks[j], node2coord, network,
           container, j === 0, j, node.inputLinks.length).node() as any;
       }
@@ -546,24 +554,12 @@ function updateUI() {
   updateWeightsUI(gs.transformer, d3.select("g.core"));
 
   /** Update all heatmaps **/
-  let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.activeNodeId);
-  let blockKey = isOut ? "output" : "attention"
-  if (state.useContext) blockKey = isOut ? "ov" : "qk"
-  gc.inspectHeatMap.updateGraph(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
-
-  if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
-    var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
-    // console.log("Forward pass", forward)
-    gs.residualIds.map((id, idx) => gc.residuals[idx].updateGraph(forward[id]))
-    gc.resultHeatMap.updateGraph(forward.unembed);
-    d3.select("#output-value").text(forward.result);
-  }
-
-  // Update all attention and output patterns for nodes.
+  // Heatmaps for each node: embeddings and attention/output patterns.
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
       var [blockIdx, headIdx, isOut] = nn.parseNodeId(data.id);
       let frameData;
+      // No headIdx indicates it is an input node
       if (headIdx === undefined) {
         frameData = [gd.currentFrame.embedding[blockIdx]]
       }
@@ -574,6 +570,21 @@ function updateUI() {
       }
       data.heatmap.updateGraph(frameData)
     });
+
+  // Update the inspection heatmap
+  let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.activeNodeId);
+  let blockKey = (isOut === 1) ? "output" : "attention"
+  if (state.useContext) blockKey = isOut ? "ov" : "qk"
+  gc.inspectHeatMap.updateGraph(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
+
+  // Update the residual heatmaps
+  if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
+    var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
+    // console.log("Forward pass", forward)
+    gs.residualIds.map((id, idx) => gc.residuals[idx].updateGraph(forward[id]))
+    gc.resultHeatMap.updateGraph(forward.unembed);
+    d3.select("#output-value").text(forward.result);
+  }
 
   function zeroPad(n: number): string {
     let pad = "000000";
@@ -590,6 +601,7 @@ function updateUI() {
 
 
   d3.select("#experiment").property("value", state.experiment)
+  d3.select("#exp-notes").select(".text").text(gd.experiments[state.experiment].notes);
   d3.select("#configuration").property("value", state.currentTag)
   d3.select("#context-value").text(`${state.context}`)
   d3.select(`#${state.currentTab}Tab`).classed("active", true);
@@ -597,8 +609,8 @@ function updateUI() {
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
   d3.select("#loss-train").text(logHumanReadable(gd.currentFrame.lossTrain));
   d3.select("#loss-test").text(logHumanReadable(gd.currentFrame.lossTest));
+  d3.select("#inspect-label").text(`Head: ${blockIdx}.${headIdx} ${blockKey}`);
   d3.select("#accuracy-test").text((gd.currentFrame.accuracyTest * 100).toFixed(0));
-  d3.select("#inspect-label").text(`Head: ${gs.activeNodeId.replace('_', '.')}`);
   d3.select("#epoch-number").text(addCommas(zeroPad(gd.currentFrame.epoch)));
 }
 
@@ -639,7 +651,7 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 
 function redraw() {
   var ccfg = gd.currentConfig
-  gd.activeVocab = gd.currentConfig.vocabulary.slice(0, gs.maxTokens)
+  gd.activeVocab = ccfg.vocabulary.slice(0, gs.maxTokens)
 
   gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
   gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
@@ -665,7 +677,6 @@ function initialLoad() {
     .then(response => response.json())
     .then(contents => {
       let exp_selector = d3.select("#experiment")
-      // for (let exp_name of contents) {
       let res = contents.map((exp_name) =>
         fetch(`./data/${exp_name}.json`)
           .then(response => response.json())
@@ -673,7 +684,7 @@ function initialLoad() {
             gd.experiments[exp_name] = data
             exp_selector.append("option").text(data.name).attr("value", exp_name)
           })
-          .catch(error => console.log(error))
+          .catch(error => console.log(`Couldn't load ${exp_name}.json`))
       )
       Promise.all(res).then(() =>
         console.log("All Experiments", gd.experiments)
