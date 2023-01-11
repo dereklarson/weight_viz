@@ -44,7 +44,7 @@ export class State {
   ];
 
   experiment: string = "parity";
-  currentTag: string = "de@2_nh@1";
+  currentTag: string = "de@3_nh@1";
   currentTab: string = "model";
   currentFrameIdx: number = 0;
   useContext: boolean = false;

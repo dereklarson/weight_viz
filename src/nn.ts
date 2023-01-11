@@ -110,8 +110,8 @@ export class Link {
  * @param tokens List of ids for the input nodes. This might be a selection
  *   of the vocabulary, or the current context.
  */
-export function buildNetwork(blocks: number[], tokens: string[], maxHeads: number): Node[][] {
-  let network: Node[][] = [tokens.map((name, idx) => new Node(String(idx), name))];
+export function buildNetwork(blocks: number[], inputs: string[], maxHeads: number): Node[][] {
+  let network: Node[][] = [inputs.map((name, idx) => new Node(String(idx), name))];
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
     let currentBlock: Node[] = [];
     network.push(currentBlock);
@@ -131,15 +131,15 @@ export function buildNetwork(blocks: number[], tokens: string[], maxHeads: numbe
   return network;
 }
 
-function softmax(logits: number[]) {
+function softmax(logits: number[]): number[] {
   const maxLogit = Math.max(...logits);
   const scores = logits.map(l => Math.exp(l - maxLogit));
   const denom = scores.reduce((acc, cur) => acc + cur);
   return scores.map(s => s / denom);
 }
 
-function maskAndScale(attn: Matrix, scale: number) {
-  return attn.map((val, index) => index[0] >= index[1] ? val / scale : -1e9)
+export function maskAndScale(attn: Array2D | Matrix, scale: number) {
+  return matrix(attn).map((val, index) => index[0] >= index[1] ? val / scale : -1e9)
 }
 
 /** Returns the series of residual states propagating through the network */
@@ -171,7 +171,7 @@ export function forward(context: number[], frame: WFrame, config: TransformerCon
   return { position, embedding, preBlock, block1, unembed, attn_weights, result }
 }
 
-function aggProbs(qkMatrix: Array2D) {
+function aggProbs(qkMatrix: Array2D): number[] {
   var sum = (base, acc) => base.map((val, idx) => acc[idx] + val)
   var weights = qkMatrix.reduce(sum)
   return softmax(weights)
@@ -201,26 +201,7 @@ export function updateWeights(network: Node[][], frame_heads: Array2D[],
   }
 }
 
-/** Iterates over every node in the network/ */
-export function forEachNode(network: Node[][], ignoreInputs: boolean,
-  accessor: (node: Node) => any) {
-  for (let blockIdx = ignoreInputs ? 1 : 0;
-    blockIdx < network.length;
-    blockIdx++) {
-    let currentBlock = network[blockIdx];
-    for (let i = 0; i < currentBlock.length; i++) {
-      let node = currentBlock[i];
-      accessor(node);
-    }
-  }
-}
-
-export function parseNodeId(nodeId: string) {
+export function parseNodeId(nodeId: string): number[] {
   if (nodeId === null) return [null, null]
   return nodeId.split("_").map(id => parseInt(id))
-}
-
-/** Returns the output node in the network. */
-export function getOutputNode(network: Node[][]) {
-  return network[network.length - 1][0];
 }

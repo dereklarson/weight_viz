@@ -320,6 +320,7 @@ header h1 .optional {
 #info-icon {
   scale: 70%;
   padding-left: 10px;
+  translate: 0px -4px;
 }
 
 .tooltip {
@@ -543,6 +544,12 @@ g.column rect {
   z-index: 100;
 }
 
+.vocab-label {
+  z-index: 1000;
+  text-anchor: middle;
+  cursor: pointer;
+}
+
 .plus-minus-neurons .mdl-button:first-of-type {
   margin-right: 5px;
 }
@@ -583,7 +590,7 @@ g.column rect {
 
 #network {
   position: absolute;
-  top: 110px;
+  top: 70px;
   left: 0;
   z-index: 100;
 }

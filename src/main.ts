@@ -21,9 +21,6 @@ import { Player } from "./player";
 import { State } from "./state";
 import './style.css';
 
-const TOKEN_SIZE = 20;
-const RECT_SIZE = 60;
-
 /** Define a global Objects for clear organization of variables
  *  gd -- Global data: the loaded experiment data 
  *  gc -- Global components: heatmaps, Player controls
@@ -35,7 +32,6 @@ interface GlobalData {
   frames: nn.WFrame[],
   currentConfig: nn.TransformerConfig,
   currentFrame: nn.WFrame,
-  activeVocab: string[],
 }
 
 let gd: GlobalData = {
@@ -44,7 +40,6 @@ let gd: GlobalData = {
   frames: undefined,
   currentConfig: undefined,
   currentFrame: undefined,
-  activeVocab: undefined,
 }
 
 interface GlobalComponents {
@@ -66,21 +61,29 @@ let gc: GlobalComponents = {
 interface GlobalSettings {
   activeTokenId: string,
   activeNodeId: string,
+  activeVocab: string[],
+  inputIdxs: number[],
   residualIds: string[],
   paramTabs: string[]
   transformer: nn.Node[][],
   maxTokens: number,
   maxHeads: number,
+  tokenSize: number,
+  nodeSize: number,
 }
 
 let gs: GlobalSettings = {
   activeTokenId: null,
   activeNodeId: "0_0_0",
+  activeVocab: undefined,
+  inputIdxs: undefined,
   residualIds: ["position", "embedding", "preBlock", "block1"],
   paramTabs: ["model", "data", "train"],
   transformer: null,
   maxTokens: 10,
   maxHeads: 5,
+  tokenSize: 20,
+  nodeSize: 60,
 }
 
 // State contains variables we can load from the URL
@@ -206,18 +209,23 @@ function makeGUI() {
   /* Scrubbing slider allows easy frame navigation */
   d3.select("#scrubber").on("input", function () { setFrame(parseInt(this.value)) })
 
+  function setContextState() {
+    d3.select("#residual-box").classed("hidden", !state.useContext)
+    d3.select("#vocab-bank").classed("hidden", !state.useContext)
+    d3.selectAll(".vocab-label").classed("hidden", state.useContext)
+    d3.selectAll(".context-label").classed("hidden", !state.useContext)
+  }
+
   /* Context checkbox switches between token and context modes, shows residual */
   let useContext = d3.select("#use-context").on("change", function () {
     state.useContext = this.checked;
     state.serialize();
-    d3.select("#residual-box").classed("hidden", !this.checked)
-    d3.selectAll(".vocab-label").classed("hidden", this.checked)
-    d3.selectAll(".context-label").classed("hidden", !this.checked)
+    setContextState()
     redraw()
     updateUI();
   });
   useContext.property("checked", state.useContext);
-  d3.select("#residual-box").classed("hidden", !state.useContext)
+  setContextState()
 
   // Add scale to the gradient color map.
   let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);
@@ -275,11 +283,50 @@ function updateWeightsUI(network: nn.Node[][], container) {
     }
   }
 }
+function drawVocabSet(container, position: number[]) {
+  let width = 25;
+  let height = 25;
 
-function drawTokenNode(cx: number, cy: number, nodeId: string,
-  container, node?: nn.Node) {
-  let x = cx - RECT_SIZE / 2;
-  let y = cy - TOKEN_SIZE / 2;
+  var rows = Math.max(2, Math.floor(gs.activeVocab.length / 5))
+  var cols = Math.ceil(gs.activeVocab.length / rows)
+  let coords = gs.activeVocab.map((_, idx) => [(idx % cols) * width, Math.floor(idx / cols) * height])
+
+  function makeClickCallback(tokenIdx: number) {
+    return function () {
+      state.context.push(tokenIdx)
+      if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
+      d3.select("#context").text(`${state.context}`)
+      redraw()
+      updateUI()
+    }
+  }
+
+  gs.activeVocab.forEach((tokenName, idx) => {
+    var nodeGroup = container.append("g")
+      .attr({
+        "id": `vocab-${idx}`,
+        "transform": `translate(${coords[idx][0]},${coords[idx][1]})`
+      })
+      .on("click", makeClickCallback(idx))
+
+    nodeGroup.append("rect")
+      .attr({ width, height, "rx": 6, "ry": 6, "fill": "lightgrey" })
+
+    var text = nodeGroup.append("text").attr({
+      class: "vocab-label",
+      x: width / 2,
+      y: height / 2,
+      "dominant-baseline": "middle",
+    });
+    text.append("tspan").text(tokenName)
+  })
+
+  return rows * height
+}
+
+function drawTokenNode(container, position: number[], nodeId: string, nodeName: string) {
+  let x = position[0] - gs.nodeSize / 2;
+  let y = position[1] - gs.tokenSize / 2;
   let cols = gd.currentConfig.d_embed
 
   let nodeGroup = container.append("g")
@@ -292,23 +339,22 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
   let text = nodeGroup.append("text").attr({
     class: "main-label",
     x: -10,
-    y: TOKEN_SIZE / 2, "text-anchor": "end"
+    y: gs.tokenSize / 2, "text-anchor": "end"
   });
-  text.append("tspan").text(node.label)
+  text.append("tspan").text(nodeName)
 
   function makeClickCallback(canvas, _nodeId: string) {
-    return function () {
-      if (state.useContext) {
-        state.context.push(parseInt(nodeId))
-        if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
-        d3.select("#context").text(`${state.context}`)
-      }
-      else {
-        d3.select(`#canvas-${state.selectedTokenId}`)
-          .classed("active", false);
-        state.selectedTokenId = state.selectedTokenId == _nodeId ? null : _nodeId
-        canvas.classed("active", _nodeId == state.selectedTokenId);
-      }
+    if (state.useContext && !_nodeId.includes("Vocab")) return () => null
+    else if (state.useContext && _nodeId.includes("Vocab")) return function () {
+      state.context.push(parseInt(nodeId))
+      if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
+      d3.select("#context").text(`${state.context}`)
+      redraw()
+    }
+    else return function () {
+      d3.select(`#canvas-${state.selectedTokenId}`).classed("active", false);
+      state.selectedTokenId = state.selectedTokenId == _nodeId ? null : _nodeId
+      canvas.classed("active", _nodeId == state.selectedTokenId);
       updateUI()
     }
   }
@@ -335,14 +381,14 @@ function drawTokenNode(cx: number, cy: number, nodeId: string,
     .on("click", makeClickCallback(canvas, nodeId))
     .on("mouseenter", makeHoverCallback(canvas, nodeId, true))
     .on("mouseleave", makeHoverCallback(canvas, nodeId, false))
-  let tokenHeatMap = new HeatMap(RECT_SIZE, 1, cols, canvas, { noSvg: true });
+  let tokenHeatMap = new HeatMap(gs.nodeSize, 1, cols, canvas, { noSvg: true });
   canvas.datum({ heatmap: tokenHeatMap, id: nodeId });
 }
 
 
 function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.Node) {
-  let x = cx - RECT_SIZE;
-  let y = cy - RECT_SIZE / 2;
+  let x = cx - gs.nodeSize;
+  let y = cy - gs.nodeSize / 2;
   let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
   let cols = rows;
 
@@ -386,7 +432,7 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
     .on("click", makeClickCallback(attnCanvas, attnId))
     .on("mouseenter", makeHoverCallback(attnCanvas, attnId, true))
     .on("mouseleave", makeHoverCallback(attnCanvas, attnId, false))
-  let attnHeatMap = new HeatMap(RECT_SIZE, rows, cols, attnCanvas, { noSvg: true });
+  let attnHeatMap = new HeatMap(gs.nodeSize, rows, cols, attnCanvas, { noSvg: true });
   attnCanvas.datum({ heatmap: attnHeatMap, id: attnId });
 
   var outputId = nodeId + "_1"
@@ -398,13 +444,13 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
     })
     .style({
       position: "absolute",
-      left: `${x + RECT_SIZE + 8}px`,
+      left: `${x + gs.nodeSize + 8}px`,
       top: `${y + 3}px`
     })
     .on("click", makeClickCallback(outputCanvas, outputId))
     .on("mouseenter", makeHoverCallback(outputCanvas, outputId, true))
     .on("mouseleave", makeHoverCallback(outputCanvas, outputId, false))
-  let outputHeatMap = new HeatMap(RECT_SIZE, rows, cols, outputCanvas, { noSvg: true });
+  let outputHeatMap = new HeatMap(gs.nodeSize, rows, cols, outputCanvas, { noSvg: true });
   outputCanvas.datum({ heatmap: outputHeatMap, id: outputId });
 }
 
@@ -432,39 +478,43 @@ function drawNetwork(network: nn.Node[][]): void {
   let featureWidth = 118;
   let layerScale = d3.scale.ordinal<number, number>()
     .domain(d3.range(1, numLayers))
-    .rangePoints([featureWidth, width - RECT_SIZE], 0.7);
+    .rangePoints([featureWidth, width - gs.nodeSize], 0.7);
   let nodeIndexScale = (nodeIndex: number, dim: number) => nodeIndex * (dim + 25);
 
   // Draw the input layer.
-  let xDim = RECT_SIZE;
-  let yDim = TOKEN_SIZE;
+  let xDim = gs.nodeSize;
+  let yDim = gs.tokenSize;
+  let vocabSize = 20;
+  let yPad = 10;
   var indent = 30;
   let cx = xDim / 2 + indent;
+  let maxY = 0;
+  let margin = 30;
 
-  let inputs = gd.activeVocab
-  if (state.useContext) inputs = state.context.map(i => String(i))
-  let maxY = nodeIndexScale(inputs.length, yDim);
-  inputs.forEach((nodeId, i) => {
-    let cy = nodeIndexScale(i, yDim) + yDim / 2;
-    drawTokenNode(cx, cy, nodeId, container, network[0][i]);
+  if (state.useContext) maxY = drawVocabSet(container, [0, 0]) + 50
+
+  gs.inputIdxs.forEach((tokenIdx, i) => {
+    let cy = maxY + margin + nodeIndexScale(i, yDim + yPad);
+    drawTokenNode(container, [cx, cy], String(i), gs.activeVocab[tokenIdx]);
     cy -= 5;
-    node2coord[nodeId] = { cx, cy };
+    node2coord[i] = { cx, cy };
   });
+  maxY = 400
 
   // Draw the intermediate layers.
   for (let layerIdx = 1; layerIdx < numLayers; layerIdx++) {
     let numNodes = network[layerIdx].length
-    let cx = layerScale(layerIdx) + RECT_SIZE / 2;
-    maxY = Math.max(maxY, nodeIndexScale(numNodes, RECT_SIZE));
+    let cx = layerScale(layerIdx) + gs.nodeSize / 2;
+    maxY = Math.max(maxY, nodeIndexScale(numNodes, gs.nodeSize));
     for (let i = 0; i < numNodes; i++) {
       let node = network[layerIdx][i];
-      let cy = nodeIndexScale(i, RECT_SIZE) + RECT_SIZE / 2;
+      let cy = nodeIndexScale(i, gs.nodeSize) + gs.nodeSize / 2;
       node2coord[node.id] = { cx, cy };
       drawNode(cx, cy, node.id, container, node);
 
       // Draw links.
       for (let j = 0; j < node.inputLinks.length; j++) {
-        if (!inputs.includes(String(j))) continue
+        // if (!gs.inputIdxs.includes(j)) continue
         drawLink(node.inputLinks[j], node2coord, network,
           container, j === 0, j, node.inputLinks.length).node() as any;
       }
@@ -510,9 +560,9 @@ function drawLink(
   let line = container.insert("path", ":first-child");
   let source = node2coord[input.source.id];
   let dest = node2coord[input.dest.id];
-  let dimension = RECT_SIZE * 2 + 10;
+  let dimension = gs.nodeSize * 2 + 10;
   if (gd.currentConfig.vocabulary.includes(input.source.id)) {
-    dimension = RECT_SIZE;
+    dimension = gs.nodeSize;
   }
   let datum = {
     source: {
@@ -561,12 +611,14 @@ function updateUI() {
       let frameData;
       // No headIdx indicates it is an input node
       if (headIdx === undefined) {
-        frameData = [gd.currentFrame.embedding[blockIdx]]
+        frameData = [gd.currentFrame.embedding[gs.inputIdxs[blockIdx]]]
       }
       else {
         blockKey = isOut ? "output" : "attention"
         if (state.useContext) blockKey = isOut ? "ov" : "qk"
         frameData = gd.currentFrame.blocks[blockIdx][blockKey][headIdx]
+        // Contextual QK matrix should be masked for clarity
+        if (state.useContext && !isOut) frameData = nn.maskAndScale(frameData, 1)
       }
       data.heatmap.updateGraph(frameData)
     });
@@ -651,19 +703,21 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 
 function redraw() {
   var ccfg = gd.currentConfig
-  gd.activeVocab = ccfg.vocabulary.slice(0, gs.maxTokens)
+  gs.activeVocab = ccfg.vocabulary.slice(0, gs.maxTokens)
+  gs.inputIdxs = state.useContext ? state.context : gs.activeVocab.map((_, idx) => idx)
 
-  gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
-  gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
   let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
   let cols = rows;
+  gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
+  gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
   gc.inspectHeatMap = new HeatMap(300, rows, cols, d3.select("#heatmap"), { showAxes: true });
   gc.residuals = gs.residualIds.map((id) =>
     new HeatMap(100, ccfg.n_ctx, ccfg.d_embed, d3.select(`#${id}`), { maxHeight: 60 })
   )
   gc.resultHeatMap = new HeatMap(150, ccfg.n_ctx, ccfg.n_vocab, d3.select("#unembed"))
-  let shape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
-  gs.transformer = nn.buildNetwork(shape, gd.activeVocab, gs.maxHeads);
+  var netShape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
+  var inputs = gs.inputIdxs.map(tokenIdx => gs.activeVocab[tokenIdx])
+  gs.transformer = nn.buildNetwork(netShape, inputs, gs.maxHeads);
   drawNetwork(gs.transformer);
 };
 
