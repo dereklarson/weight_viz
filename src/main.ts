@@ -45,6 +45,7 @@ let gd: GlobalData = {
 interface GlobalComponents {
   player: Player,
   lineChart: LineChart,
+  loaderTimer: NodeJS.Timeout,
   residuals: HeatMap[],
   inspectHeatMap: HeatMap,
   resultHeatMap: HeatMap,
@@ -53,6 +54,7 @@ interface GlobalComponents {
 let gc: GlobalComponents = {
   player: new Player(),
   lineChart: undefined,
+  loaderTimer: undefined,
   residuals: [],
   resultHeatMap: undefined,
   inspectHeatMap: undefined,
@@ -722,7 +724,7 @@ function initialLoad() {
 
 /** Load an experiment's full data */
 function loadData(experiment: string, filetag: string) {
-  d3.select("#loader").classed("hidden", false)
+  gc.loaderTimer = setTimeout(() => d3.select("#loader").classed("hidden", false), 1000)
   console.log("Loading experiment/tag:", experiment, filetag)
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())
@@ -742,6 +744,7 @@ function loadData(experiment: string, filetag: string) {
       state.selectedTokenId = null
       state.selectedNodeId = "0_0_0"
       state.context = []
+      clearTimeout(gc.loaderTimer)
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)
       redraw();
