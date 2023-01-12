@@ -89,12 +89,14 @@ export class HeatMap {
   public data;
 
   constructor(
-    width: number, nRow: number, nCol: number,
-    container, userSettings?: HeatMapSettings) {
+    container, nRow: number, nCol: number,
+    shape: number[], userSettings?: HeatMapSettings) {
     this.nRow = nRow;
     this.nCol = nCol;
     this.colorScale = colorScale
-    let height = (nRow / nCol) * width
+    if (!shape[0]) shape[0] = (nCol / nRow) * shape[1]
+    if (!shape[1]) shape[1] = (nRow / nCol) * shape[0]
+    let [width, height] = shape;
 
     if (userSettings != null) {
       // overwrite the defaults with the user-specified settings.

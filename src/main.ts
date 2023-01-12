@@ -70,6 +70,8 @@ interface GlobalSettings {
   maxHeads: number,
   tokenSize: number,
   nodeSize: number,
+  tokenColWidth: number,
+  networkSVGHeight: number,
 }
 
 let gs: GlobalSettings = {
@@ -84,6 +86,8 @@ let gs: GlobalSettings = {
   maxHeads: 5,
   tokenSize: 20,
   nodeSize: 60,
+  tokenColWidth: 118,
+  networkSVGHeight: 450,
 }
 
 // State contains variables we can load from the URL
@@ -104,7 +108,7 @@ function titleCase(str: string) {
 }
 
 let paramKeys = {
-  data: ["operation", "seed", "training_fraction", "value_range", "dist_style", "value_count"],
+  data: ["operation", "seed", "training_fraction", "value_range", "dist_style", "value_count", "use_operators"],
   model: ["d_embed", "d_head", "d_mlp", "n_ctx", "n_heads", "n_blocks", "use_position"],
   train: ["learning_rate", "weight_decay", "n_epochs"],
 }
@@ -257,8 +261,8 @@ function updateWeightsUI(network: nn.Node[][], container) {
     // Update all the nodes in this layer.
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      for (let j = 0; j < node.inputLinks.length; j++) {
-        let link = node.inputLinks[j];
+      for (let j = 0; j < node.inLinks.length; j++) {
+        let link = node.inLinks[j];
         let marker = "markerArrow"
         let dashOffset = -state.currentFrameIdx / 3
         let stroke = colorScale(link.weight);
@@ -324,29 +328,30 @@ function drawVocabSet(container, position: number[]) {
   return rows * height
 }
 
-function drawTokenNode(container, position: number[], nodeId: string, nodeName: string) {
-  let x = position[0] - gs.nodeSize / 2;
-  let y = position[1] - gs.tokenSize / 2;
+function drawTokenNode(container, node: nn.Node) {
+  let [x, y] = node.position
   let cols = gd.currentConfig.d_embed
 
   let nodeGroup = container.append("g")
     .attr({
       "class": "node",
-      "id": `node${nodeId}`,
+      "id": `node${node.id}`,
       "transform": `translate(${x},${y})`
     })
 
   let text = nodeGroup.append("text").attr({
     class: "main-label",
     x: -10,
-    y: gs.tokenSize / 2, "text-anchor": "end"
+    y: gs.tokenSize / 2,
+    "text-anchor": "end",
+    "dominant-baseline": "middle"
   });
-  text.append("tspan").text(nodeName)
+  text.append("tspan").text(node.label)
 
   function makeClickCallback(canvas, _nodeId: string) {
     if (state.useContext && !_nodeId.includes("Vocab")) return () => null
     else if (state.useContext && _nodeId.includes("Vocab")) return function () {
-      state.context.push(parseInt(nodeId))
+      state.context.push(parseInt(node.id))
       if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
       d3.select("#context").text(`${state.context}`)
       redraw()
@@ -370,32 +375,30 @@ function drawTokenNode(container, position: number[], nodeId: string, nodeName: 
   let canvas = d3.select("#network").insert("div", ":first-child")
   canvas
     .attr({
-      "id": `canvas-${nodeId}`,
+      "id": `canvas-${node.id}`,
       "class": "canvas"
     })
     .style({
       position: "absolute",
-      left: `${x + 3}px`,
-      top: `${y + 3}px`
+      left: `${x + 2}px`,
+      top: `${y + 2}px`
     })
-    .on("click", makeClickCallback(canvas, nodeId))
-    .on("mouseenter", makeHoverCallback(canvas, nodeId, true))
-    .on("mouseleave", makeHoverCallback(canvas, nodeId, false))
-  let tokenHeatMap = new HeatMap(gs.nodeSize, 1, cols, canvas, { noSvg: true });
-  canvas.datum({ heatmap: tokenHeatMap, id: nodeId });
+    .on("click", makeClickCallback(canvas, node.id))
+    .on("mouseenter", makeHoverCallback(canvas, node.id, true))
+    .on("mouseleave", makeHoverCallback(canvas, node.id, false))
+  let tokenHeatMap = new HeatMap(canvas, 1, cols, node.shape, { noSvg: true });
+  canvas.datum({ heatmap: tokenHeatMap, id: node.id });
 }
 
-
-function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.Node) {
-  let x = cx - gs.nodeSize;
-  let y = cy - gs.nodeSize / 2;
+function drawNode(container, node: nn.Node) {
+  let [x, y] = node.position
   let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
   let cols = rows;
 
   let nodeGroup = container.append("g")
     .attr({
       "class": "node",
-      "id": `node${nodeId}`,
+      "id": `node${node.id}`,
       "transform": `translate(${x},${y})`
     });
 
@@ -417,116 +420,26 @@ function drawNode(cx: number, cy: number, nodeId: string, container, node?: nn.N
   }
 
   // Draw the node's attention and output canvases.
-  let attnId = nodeId + "_0";
-  let attnCanvas = d3.select("#network").insert("div", ":first-child")
-  attnCanvas
-    .attr({
-      "id": `canvas-${attnId}`,
-      "class": "canvas"
-    })
-    .style({
-      position: "absolute",
-      left: `${x + 3}px`,
-      top: `${y + 3}px`
-    })
-    .on("click", makeClickCallback(attnCanvas, attnId))
-    .on("mouseenter", makeHoverCallback(attnCanvas, attnId, true))
-    .on("mouseleave", makeHoverCallback(attnCanvas, attnId, false))
-  let attnHeatMap = new HeatMap(gs.nodeSize, rows, cols, attnCanvas, { noSvg: true });
-  attnCanvas.datum({ heatmap: attnHeatMap, id: attnId });
-
-  var outputId = nodeId + "_1"
-  let outputCanvas = d3.select("#network").insert("div", ":first-child")
-  outputCanvas
-    .attr({
-      "id": `canvas-${outputId}`,
-      "class": "canvas"
-    })
-    .style({
-      position: "absolute",
-      left: `${x + gs.nodeSize + 8}px`,
-      top: `${y + 3}px`
-    })
-    .on("click", makeClickCallback(outputCanvas, outputId))
-    .on("mouseenter", makeHoverCallback(outputCanvas, outputId, true))
-    .on("mouseleave", makeHoverCallback(outputCanvas, outputId, false))
-  let outputHeatMap = new HeatMap(gs.nodeSize, rows, cols, outputCanvas, { noSvg: true });
-  outputCanvas.datum({ heatmap: outputHeatMap, id: outputId });
-}
-
-function drawNetwork(network: nn.Node[][]): void {
-  let svg = d3.select("#svg");
-  // Remove all svg elements.
-  svg.select("g.core").remove();
-  // Remove all div elements.
-  d3.select("#network").selectAll("div.canvas").remove();
-
-  // Get the width of the svg container.
-  let padding = 3;
-  let co = d3.select(".column.inspection").node() as HTMLDivElement;
-  let cf = d3.select(".column.tokens").node() as HTMLDivElement;
-  let width = co.offsetLeft - cf.offsetLeft;
-  svg.attr("width", width);
-
-  // Map of all node coordinates.
-  let node2coord: { [id: string]: { cx: number, cy: number } } = {};
-  let container = svg.append("g")
-    .classed("core", true)
-    .attr("transform", `translate(${padding},${padding})`);
-  // Draw the network layer by layer.
-  let numLayers = network.length;
-  let featureWidth = 118;
-  let layerScale = d3.scale.ordinal<number, number>()
-    .domain(d3.range(1, numLayers))
-    .rangePoints([featureWidth, width - gs.nodeSize], 0.7);
-  let nodeIndexScale = (nodeIndex: number, dim: number) => nodeIndex * (dim + 25);
-
-  // Draw the input layer.
-  let xDim = gs.nodeSize;
-  let yDim = gs.tokenSize;
-  let vocabSize = 20;
-  let yPad = 10;
-  var indent = 30;
-  let cx = xDim / 2 + indent;
-  let maxY = 0;
-  let margin = 30;
-
-  if (state.useContext) maxY = drawVocabSet(container, [0, 0]) + 50
-
-  gs.inputIdxs.forEach((tokenIdx, i) => {
-    let cy = maxY + margin + nodeIndexScale(i, yDim + yPad);
-    drawTokenNode(container, [cx, cy], String(i), gs.activeVocab[tokenIdx]);
-    cy -= 5;
-    node2coord[i] = { cx, cy };
-  });
-  maxY = 400
-
-  // Draw the intermediate layers.
-  for (let layerIdx = 1; layerIdx < numLayers; layerIdx++) {
-    let numNodes = network[layerIdx].length
-    let cx = layerScale(layerIdx) + gs.nodeSize / 2;
-    maxY = Math.max(maxY, nodeIndexScale(numNodes, gs.nodeSize));
-    for (let i = 0; i < numNodes; i++) {
-      let node = network[layerIdx][i];
-      let cy = nodeIndexScale(i, gs.nodeSize) + gs.nodeSize / 2;
-      node2coord[node.id] = { cx, cy };
-      drawNode(cx, cy, node.id, container, node);
-
-      // Draw links.
-      for (let j = 0; j < node.inputLinks.length; j++) {
-        // if (!gs.inputIdxs.includes(j)) continue
-        drawLink(node.inputLinks[j], node2coord, network,
-          container, j === 0, j, node.inputLinks.length).node() as any;
-      }
-    }
+  for (var isOutput of [false, true]) {
+    let id = `${node.id}_${+isOutput}`
+    let canvas = d3.select("#network").insert("div", ":first-child")
+    let padRight = isOutput ? gs.nodeSize + 5 : 0
+    canvas
+      .attr({
+        "id": `canvas-${id}`,
+        "class": "canvas"
+      })
+      .style({
+        position: "absolute",
+        left: `${x + 5 + padRight}px`,
+        top: `${y + 3}px`
+      })
+      .on("click", makeClickCallback(canvas, id))
+      .on("mouseenter", makeHoverCallback(canvas, id, true))
+      .on("mouseleave", makeHoverCallback(canvas, id, false))
+    let heatmap = new HeatMap(canvas, rows, cols, [gs.nodeSize, gs.nodeSize], { noSvg: true });
+    canvas.datum({ heatmap, id });
   }
-
-  // Adjust the height of the svg.
-  svg.attr("height", maxY);
-
-  // Adjust the height of the features column.
-  let height = getRelativeHeight(d3.select("#network"))
-  d3.select(".column.features").style("height", height + "px");
 }
 
 function getRelativeHeight(selection) {
@@ -553,32 +466,26 @@ function updateWeightsHover(display: boolean, link?: nn.Link,
     .text(value.toPrecision(2));
 }
 
-function drawLink(
-  input: nn.Link, node2coord: { [id: string]: { cx: number, cy: number } },
-  network: nn.Node[][], container,
-  isFirst: boolean, index: number, length: number) {
+function drawLink(container, link: nn.Link, offset: number) {
   let line = container.insert("path", ":first-child");
-  let source = node2coord[input.source.id];
-  let dest = node2coord[input.dest.id];
-  let dimension = gs.nodeSize * 2 + 10;
-  if (gd.currentConfig.vocabulary.includes(input.source.id)) {
-    dimension = gs.nodeSize;
-  }
+
+  // We add a small offset to the destination y coordinate, so the links are distinct
+  // as they intersect with the boundary of the destination node.
   let datum = {
     source: {
-      y: source.cx + dimension / 2,
-      x: source.cy - 1
+      y: link.source.position[0] + link.source.shape[0],
+      x: link.source.position[1] + link.source.shape[1] / 2
     },
     target: {
-      y: dest.cx - dimension,
-      x: dest.cy + ((index - (length - 1) / 2) / length) * 12
+      y: link.dest.position[0],
+      x: link.dest.position[1] + link.dest.shape[1] / 2 + offset
     }
   };
   let diagonal = d3.svg.diagonal().projection(d => [d.y, d.x]);
   line.attr({
     "marker-start": "url(#markerArrow)",
     class: "link",
-    id: "link" + input.source.id + "-" + input.dest.id,
+    id: "link" + link.source.id + "-" + link.dest.id,
     d: diagonal(datum, 0)
   });
 
@@ -588,13 +495,82 @@ function drawLink(
     .attr("d", diagonal(datum, 0))
     .attr("class", "link-hover")
     .on("mouseenter", function () {
-      updateWeightsHover(true, input, d3.mouse(this));
+      updateWeightsHover(true, link, d3.mouse(this));
     }).on("mouseleave", function () {
       updateWeightsHover(null);
     });
   return line;
 }
 
+function drawNetwork(network: nn.Node[][]): void {
+  let svg = d3.select("#svg");
+  // Remove all svg elements.
+  svg.select("g.core").remove();
+  // Remove all div elements.
+  d3.select("#network").selectAll("div.canvas").remove();
+
+  // Get the width of the svg container.
+  let padding = 3;
+  let co = d3.select(".column.inspection").node() as HTMLDivElement;
+  let cf = d3.select(".column.tokens").node() as HTMLDivElement;
+  let width = co.offsetLeft - cf.offsetLeft;
+  console.log(co.offsetLeft, cf.offsetLeft)
+  svg.attr("width", width);
+
+  // Map of all node coordinates.
+  let node2coord: { [id: string]: { cx: number, cy: number } } = {};
+  let container = svg.append("g")
+    .classed("core", true)
+    .attr("transform", `translate(${padding},${padding})`);
+  // Draw the network layer by layer.
+  let numLayers = network.length;
+  let layerScale = d3.scale.ordinal<number, number>()
+    .domain(d3.range(1, numLayers))
+    .rangePoints([gs.tokenColWidth, width - gs.nodeSize], 0.7);
+  let xStep = Math.floor(width / network.length)
+  let nodeXScale = (nodeIndex: number) => nodeIndex * xStep;
+  let nodeYScale = (nodeIndex: number, yStep: number) => nodeIndex * yStep;
+
+  // Draw the input layer.
+  var tokenIndent = 20;
+  let yStart = state.useContext ? drawVocabSet(container, [0, 0]) + 80 : 30
+
+  gs.inputIdxs.forEach((tokenIdx, i) => {
+    let cy = yStart + nodeYScale(i, gs.tokenSize + 20);
+    let node = network[0][i];
+    node.position = [tokenIndent, cy]
+    node.shape = [gs.tokenSize * gd.currentConfig.d_embed, gs.tokenSize]
+    if (node.shape[0] > 100) {
+      node.shape[1] /= node.shape[0] / 100
+      node.shape[0] = 100
+    }
+    drawTokenNode(container, node);
+  });
+
+  // Draw the intermediate layers.
+  for (let layerIdx = 1; layerIdx < numLayers; layerIdx++) {
+    let cx = nodeXScale(layerIdx);
+    for (let i = 0; i < network[layerIdx].length; i++) {
+      let node = network[layerIdx][i];
+      let cy = nodeYScale(i, gs.nodeSize + 25);
+      node.position = [cx, cy];
+      node.shape = [2 * gs.nodeSize + 8, gs.nodeSize]
+      drawNode(container, node);
+
+      for (let j = 0; j < node.inLinks.length; j++) {
+        var offset = -node.inLinks.length / 2 + j
+        drawLink(container, node.inLinks[j], offset)
+      }
+    }
+  }
+
+  // Adjust the height of the svg to meet the network needs
+  svg.attr("height", gs.networkSVGHeight);
+
+  // Adjust the height of the features column.
+  let height = getRelativeHeight(d3.select("#network"))
+  d3.select(".column.features").style("height", height + "px");
+}
 
 function updateUI() {
   state.serialize();
@@ -655,7 +631,6 @@ function updateUI() {
   d3.select("#experiment").property("value", state.experiment)
   d3.select("#exp-notes").select(".text").text(gd.experiments[state.experiment].notes);
   d3.select("#configuration").property("value", state.currentTag)
-  d3.select("#context-value").text(`${state.context}`)
   d3.select(`#${state.currentTab}Tab`).classed("active", true);
   d3.select("#scrubber").property('value', state.currentFrameIdx)
   d3.select("#scrubber").node().dispatchEvent(new CustomEvent('change'))
@@ -686,21 +661,6 @@ function step(count: number): void {
 }
 gc.player.onTick(step)
 
-export function getOutputWeights(network: nn.Node[][]): number[] {
-  let weights: number[] = [];
-  for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
-    let currentLayer = network[layerIdx];
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      for (let j = 0; j < node.outputs.length; j++) {
-        let output = node.outputs[j];
-        weights.push(output.weight);
-      }
-    }
-  }
-  return weights;
-}
-
 function redraw() {
   var ccfg = gd.currentConfig
   gs.activeVocab = ccfg.vocabulary.slice(0, gs.maxTokens)
@@ -710,14 +670,14 @@ function redraw() {
   let cols = rows;
   gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
   gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
-  gc.inspectHeatMap = new HeatMap(300, rows, cols, d3.select("#heatmap"), { showAxes: true });
+  gc.inspectHeatMap = new HeatMap(d3.select("#heatmap"), rows, cols, [300, 300], { showAxes: true });
   gc.residuals = gs.residualIds.map((id) =>
-    new HeatMap(100, ccfg.n_ctx, ccfg.d_embed, d3.select(`#${id}`), { maxHeight: 60 })
+    new HeatMap(d3.select(`#${id}`), ccfg.n_ctx, ccfg.d_embed, [100, 0], { maxHeight: 60 })
   )
-  gc.resultHeatMap = new HeatMap(150, ccfg.n_ctx, ccfg.n_vocab, d3.select("#unembed"))
-  var netShape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
+  gc.resultHeatMap = new HeatMap(d3.select("#unembed"), ccfg.n_ctx, ccfg.n_vocab, [150, 0])
+  var networkShape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
   var inputs = gs.inputIdxs.map(tokenIdx => gs.activeVocab[tokenIdx])
-  gs.transformer = nn.buildNetwork(netShape, inputs, gs.maxHeads);
+  gs.transformer = nn.buildNetwork(networkShape, inputs, gs.maxHeads);
   drawNetwork(gs.transformer);
 };
 
@@ -753,6 +713,7 @@ function loadData(experiment: string, filetag: string) {
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())
     .then(data => {
+      console.log(`${experiment}_${filetag} Config`, data)
       gd.currentConfig = data;
       setExperimentalParams()
     })
@@ -765,7 +726,8 @@ function loadData(experiment: string, filetag: string) {
       gd.frames = data
       gs.activeTokenId = null
       state.selectedTokenId = null
-      state.selectedNodeId = null
+      state.selectedNodeId = "0_0_0"
+      state.context = []
       d3.select("#loader").classed("hidden", true)
       d3.select("#main-part").classed("hidden", false)
       redraw();
@@ -777,6 +739,4 @@ function loadData(experiment: string, filetag: string) {
 }
 
 makeGUI();
-initialLoad().then(() =>
-  loadData(state.experiment, state.currentTag)
-)
+initialLoad().then(() => loadData(state.experiment, state.currentTag))

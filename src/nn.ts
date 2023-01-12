@@ -55,26 +55,15 @@ export interface WFrame {
 export class Node {
   id: string;
   label: string;
-  inputLinks: Link[] = [];
-  outputs: Link[] = [];
-  totalInput: number;
-  output: number;
+  inLinks: Link[] = [];
+  outLinks: Link[] = [];
+  position: number[] = [0, 0]
+  shape: number[] = [0, 0]
 
   // Creates a new node with the provided id
   constructor(id: string, label: string = "") {
     this.id = id;
     this.label = label;
-  }
-
-  /** Recomputes the node's output and returns it. */
-  updateOutput(): number {
-    // Stores total input into the node.
-    for (let j = 0; j < this.inputLinks.length; j++) {
-      let link = this.inputLinks[j];
-      this.totalInput += link.weight * link.source.output;
-    }
-    this.output = this.totalInput;
-    return this.output;
   }
 }
 
@@ -107,7 +96,7 @@ export class Link {
  * @param blocks A list representing the number of attention heads per
  *   Transformer block in the netowrk. A two-block network with 8 heads each
  *   has network = [8, 8].
- * @param tokens List of ids for the input nodes. This might be a selection
+ * @param inputs List of ids for the input nodes. This might be a selection
  *   of the vocabulary, or the current context.
  */
 export function buildNetwork(blocks: number[], inputs: string[], maxHeads: number): Node[][] {
@@ -123,8 +112,8 @@ export function buildNetwork(blocks: number[], inputs: string[], maxHeads: numbe
       for (let j = 0; j < network[blockIdx].length; j++) {
         let prevNode = network[blockIdx][j];
         let link = new Link(prevNode, node);
-        prevNode.outputs.push(link);
-        node.inputLinks.push(link);
+        prevNode.outLinks.push(link);
+        node.inLinks.push(link);
       }
     }
   }
@@ -190,8 +179,8 @@ export function updateWeights(network: Node[][], frame_heads: Array2D[],
       let probs = selectedTokenId !== null ? softmax(frame_heads[i][parseInt(selectedTokenId)]) : aggProbs(frame_heads[i])
       if (blockIdx - 1 === inspBlockIdx && inspHeadIdx !== i) probs = new Array(probs.length).fill(0)
       // Update the weights coming into this node.
-      for (let j = 0; j < node.inputLinks.length; j++) {
-        let link = node.inputLinks[j];
+      for (let j = 0; j < node.inLinks.length; j++) {
+        let link = node.inLinks[j];
         link.weight = probs[j]
         if (link.isDead) {
           continue;
