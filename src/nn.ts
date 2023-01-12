@@ -135,29 +135,33 @@ export function maskAndScale(attn: Array2D | Matrix, scale: number) {
 export function forward(context: number[], frame: WFrame, config: TransformerConfig) {
   var embedding = matrix(context.map((tokenIdx) => frame.embedding[tokenIdx]))
   var position = matrix(frame.pos_embed)
-  var preBlock = add(embedding, matrix(frame.pos_embed))
-  let block1 = clone(preBlock);
+  let blocks = {
+    resblock0: add(embedding, matrix(frame.pos_embed))
+  }
   let attn_weights = []
   for (let blockIdx = 0; blockIdx < frame.blocks.length; blockIdx++) {
-    let block = frame.blocks[blockIdx]
+    let blockData = frame.blocks[blockIdx]
+    let prevBlockId = `resblock${blockIdx}`
+    let currBlockId = `resblock${blockIdx + 1}`
+    blocks[currBlockId] = clone(blocks[prevBlockId]);
     for (let headIdx = 0; headIdx < frame.blocks[0].qk.length; headIdx++) {
       // Calculate weighted attention matrix
-      var attn = multiply(multiply(preBlock, transpose(block.qk[headIdx])), transpose(preBlock));
+      var attn = multiply(multiply(blocks[prevBlockId], transpose(blockData.qk[headIdx])), transpose(blocks[prevBlockId]));
       attn = maskAndScale(attn, Math.sqrt(config.d_head))
       var attn_sm = attn.toArray().map((row) => softmax(row))
       attn_weights.push(attn_sm)
       // Apply attention to OV circuit
-      var weighted = multiply(transpose(attn_sm), preBlock)
-      var head_sum = multiply(weighted, transpose(block.ov[headIdx]))
-      block1 = add(block1, head_sum)
+      var weighted = multiply(transpose(attn_sm), blocks[prevBlockId])
+      var head_sum = multiply(weighted, transpose(blockData.ov[headIdx]))
+      blocks[currBlockId] = add(blocks[currBlockId], head_sum)
     }
   }
-  var unembed = multiply(block1, frame.unembedding)
+  var unembed = multiply(blocks[`resblock${frame.blocks.length}`], frame.unembedding)
   // Calculate Argmax of the last row of the final residual
   let resRow = unembed.toArray()[unembed.size()[0] - 1]
   let result = resRow.indexOf(Math.max(...resRow))
 
-  return { position, embedding, preBlock, block1, unembed, attn_weights, result }
+  return { position, embedding, unembed, attn_weights, result, ...blocks }
 }
 
 function aggProbs(qkMatrix: Array2D): number[] {

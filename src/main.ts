@@ -66,6 +66,7 @@ interface GlobalSettings {
   residualIds: string[],
   paramTabs: string[]
   transformer: nn.Node[][],
+  maxVocab: number,
   maxTokens: number,
   maxHeads: number,
   tokenSize: number,
@@ -79,10 +80,11 @@ let gs: GlobalSettings = {
   activeNodeId: "0_0_0",
   activeVocab: undefined,
   inputIdxs: undefined,
-  residualIds: ["position", "embedding", "preBlock", "block1"],
+  residualIds: undefined,
   paramTabs: ["model", "data", "train"],
   transformer: null,
-  maxTokens: 10,
+  maxVocab: 10,
+  maxTokens: 30,
   maxHeads: 5,
   tokenSize: 20,
   nodeSize: 60,
@@ -514,7 +516,6 @@ function drawNetwork(network: nn.Node[][]): void {
   let co = d3.select(".column.inspection").node() as HTMLDivElement;
   let cf = d3.select(".column.tokens").node() as HTMLDivElement;
   let width = co.offsetLeft - cf.offsetLeft;
-  console.log(co.offsetLeft, cf.offsetLeft)
   svg.attr("width", width);
 
   // Map of all node coordinates.
@@ -581,10 +582,10 @@ function updateUI() {
 
   /** Update all heatmaps **/
   // Heatmaps for each node: embeddings and attention/output patterns.
+  let frameData;
   d3.select("#network").selectAll("div.canvas")
     .each(function (data: { heatmap: HeatMap, id: string }) {
       var [blockIdx, headIdx, isOut] = nn.parseNodeId(data.id);
-      let frameData;
       // No headIdx indicates it is an input node
       if (headIdx === undefined) {
         frameData = [gd.currentFrame.embedding[gs.inputIdxs[blockIdx]]]
@@ -603,12 +604,14 @@ function updateUI() {
   let [blockIdx, headIdx, isOut] = nn.parseNodeId(gs.activeNodeId);
   let blockKey = (isOut === 1) ? "output" : "attention"
   if (state.useContext) blockKey = isOut ? "ov" : "qk"
-  gc.inspectHeatMap.updateGraph(gd.currentFrame.blocks[blockIdx][blockKey][headIdx]);
+  frameData = gd.currentFrame.blocks[blockIdx][blockKey][headIdx]
+  if (state.useContext && !isOut) frameData = nn.maskAndScale(frameData, 1)
+  gc.inspectHeatMap.updateGraph(frameData);
 
   // Update the residual heatmaps
   if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
     var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
-    // console.log("Forward pass", forward)
+    console.log("Forward pass", forward)
     gs.residualIds.map((id, idx) => gc.residuals[idx].updateGraph(forward[id]))
     gc.resultHeatMap.updateGraph(forward.unembed);
     d3.select("#output-value").text(forward.result);
@@ -663,19 +666,29 @@ gc.player.onTick(step)
 
 function redraw() {
   var ccfg = gd.currentConfig
-  gs.activeVocab = ccfg.vocabulary.slice(0, gs.maxTokens)
+  var sliceEnd = state.useContext ? gs.maxTokens : gs.maxVocab
+  gs.activeVocab = ccfg.vocabulary.slice(0, sliceEnd)
   gs.inputIdxs = state.useContext ? state.context : gs.activeVocab.map((_, idx) => idx)
 
-  let rows = state.useContext ? gd.currentConfig.d_embed : gd.currentConfig.n_vocab;
+  let rows = state.useContext ? ccfg.d_embed : ccfg.n_vocab;
   let cols = rows;
   gc.lineChart = new LineChart(d3.select("#linechart"), ["#777", "black"]);
   gc.lineChart.setData(gd.frames.map(frame => [frame.lossTest, frame.lossTrain]));
   gc.inspectHeatMap = new HeatMap(d3.select("#heatmap"), rows, cols, [300, 300], { showAxes: true });
+  //Add residuals for pre and post head blocks
+  gs.residualIds = ["position", "embedding"]
+  d3.select("#residual-blocks").selectAll("div").remove()
+  for (let idx = 0; idx <= ccfg.n_blocks; idx++) {
+    gs.residualIds.push(`resblock${idx}`)
+    var div = d3.select("#residual-blocks").insert("div")
+    div.insert("p").text(`Block ${idx}`)
+    div.insert("div").attr({ id: `resblock${idx}`, class: "residual-canvas" })
+  }
   gc.residuals = gs.residualIds.map((id) =>
     new HeatMap(d3.select(`#${id}`), ccfg.n_ctx, ccfg.d_embed, [100, 0], { maxHeight: 60 })
   )
   gc.resultHeatMap = new HeatMap(d3.select("#unembed"), ccfg.n_ctx, ccfg.n_vocab, [150, 0])
-  var networkShape = new Array(gd.currentConfig.n_blocks).fill(gd.currentConfig.n_heads)
+  var networkShape = new Array(ccfg.n_blocks).fill(ccfg.n_heads)
   var inputs = gs.inputIdxs.map(tokenIdx => gs.activeVocab[tokenIdx])
   gs.transformer = nn.buildNetwork(networkShape, inputs, gs.maxHeads);
   drawNetwork(gs.transformer);
@@ -709,6 +722,7 @@ function initialLoad() {
 
 /** Load an experiment's full data */
 function loadData(experiment: string, filetag: string) {
+  d3.select("#loader").classed("hidden", false)
   console.log("Loading experiment/tag:", experiment, filetag)
   fetch(`./data/${state.experiment}__${filetag}__config.json`)
     .then(response => response.json())

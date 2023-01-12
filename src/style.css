@@ -301,7 +301,7 @@ header h1 .optional {
   position: absolute;
   padding: 5px;
   border: 1px solid #aaa;
-  z-index: 1000;
+  z-index: 100;
   background: #fff;
   cursor: default;
   border-radius: 5px;
@@ -327,7 +327,7 @@ header h1 .optional {
   position: absolute;
   padding: 5px;
   border: 1px solid #aaa;
-  z-index: 1000;
+  z-index: 100;
   background: #fff;
   cursor: default;
   border-radius: 5px;
@@ -534,7 +534,7 @@ g.column rect {
 }
 
 .vocab-label {
-  z-index: 1000;
+  z-index: 100;
   text-anchor: middle;
   cursor: pointer;
 }
@@ -577,7 +577,7 @@ g.column rect {
   position: absolute;
   top: 70px;
   left: 0;
-  z-index: 100;
+  z-index: 10;
 }
 
 #network svg .main-label {
