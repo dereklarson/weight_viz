@@ -1,4 +1,6 @@
-# 
+# Transformer Visor
+
+<img src="visor.png" width=600px>
 
 Transformer Visor (working title) allows for visual playback of the evolving model state during training.
 It is forked from a favorite viz tool of mine, [Tensorflow Playground](https://github.com/tensorflow/playground).
