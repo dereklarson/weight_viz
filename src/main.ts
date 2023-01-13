@@ -85,13 +85,13 @@ let gs: GlobalSettings = {
   residualIds: undefined,
   paramTabs: ["model", "data", "train"],
   transformer: null,
-  maxVocab: 10,
+  maxVocab: 12,
   maxTokens: 30,
   maxHeads: 5,
   tokenSize: 20,
   nodeSize: 60,
   tokenColWidth: 118,
-  networkSVGHeight: 450,
+  networkSVGHeight: 500,
 }
 
 // State contains variables we can load from the URL

@@ -1,0 +1,1 @@
+{"vr": "Value Range", "o": "Operation", "tf": "Train Frac", "s": "Seed", "ds": "Dist Style", "vc": "Value Count", "de": "D Embed", "dh": "D Head", "dm": "D Mlp", "nc": "N Ctx", "nh": "N Heads", "nb": "N Blocks", "nv": "N Vocab", "wa": "Weight Alpha", "as": "Attention Style", "lr": "Learning Rate", "wd": "Weight Decay", "ne": "N Epochs", "fw": "Fixed Wnorm", "up": "Use Position"}

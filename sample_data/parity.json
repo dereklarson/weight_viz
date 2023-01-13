@@ -1,0 +1,1 @@
+{"name": "Parity", "tags": ["de@3_nh@1"], "notes": "\nThis simple experiment trains a transformer to learn whether the sum of two digits in [0, 5] is odd or even.\nThe training examples are just the two single-digit numerical tokens with a label of 0 or 1. For example,\n2|3 -> 1 and 4|4 -> 0.\n"}
