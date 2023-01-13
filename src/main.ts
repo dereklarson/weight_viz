@@ -316,10 +316,12 @@ function pushContext(tokenIdx: number) {
 function drawVocabSet(container, position: number[]) {
   let width = 25;
   let height = 25;
+  let yOffset = 20;
 
   var rows = Math.max(2, Math.floor(gs.activeVocab.length / 5))
   var cols = Math.ceil(gs.activeVocab.length / rows)
-  let coords = gs.activeVocab.map((_, idx) => [(idx % cols) * width, Math.floor(idx / cols) * height])
+  let coords = gs.activeVocab.map((_, idx) => [
+    (idx % cols) * width, yOffset + Math.floor(idx / cols) * height])
 
   function makeClickCallback(tokenIdx: number) {
     return () => pushContext(tokenIdx)
