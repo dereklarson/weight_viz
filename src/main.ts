@@ -247,6 +247,19 @@ function makeGUI() {
     .attr("transform", "translate(0,10)")
     .call(xAxis);
 
+
+  window.addEventListener("keypress", (event) => {
+    var vocab = gd.currentConfig.vocabulary
+    console.log(event.code)
+    let val
+    if (event.code.startsWith("Digit")) val = event.code[5]
+    else if (event.code === "Equal") val = "="
+    else if (event.code === "Minus") val = "-"
+    else if (event.code === "KeyX") val = "*"
+    else if (event.code === "KeyP") val = "+"
+    if (vocab.includes(val)) pushContext(vocab.indexOf(val))
+  })
+
   // Listen for css-responsive changes and redraw the svg network.
   window.addEventListener("resize", () => {
     drawNetwork(gs.transformer)
@@ -291,6 +304,15 @@ function updateWeightsUI(network: nn.Node[][], container) {
     }
   }
 }
+
+function pushContext(tokenIdx: number) {
+  state.context.push(tokenIdx)
+  if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
+  d3.select("#context").text(`${state.context}`)
+  redraw()
+  updateUI()
+}
+
 function drawVocabSet(container, position: number[]) {
   let width = 25;
   let height = 25;
@@ -300,13 +322,7 @@ function drawVocabSet(container, position: number[]) {
   let coords = gs.activeVocab.map((_, idx) => [(idx % cols) * width, Math.floor(idx / cols) * height])
 
   function makeClickCallback(tokenIdx: number) {
-    return function () {
-      state.context.push(tokenIdx)
-      if (state.context.length > gd.currentConfig.n_ctx) state.context.shift()
-      d3.select("#context").text(`${state.context}`)
-      redraw()
-      updateUI()
-    }
+    return () => pushContext(tokenIdx)
   }
 
   gs.activeVocab.forEach((tokenName, idx) => {
@@ -613,7 +629,7 @@ function updateUI() {
   // Update the residual heatmaps
   if (state.useContext && state.context.length == gd.currentConfig.n_ctx) {
     var forward = nn.forward(state.context, gd.currentFrame, gd.currentConfig)
-    console.log("Forward pass", forward)
+    // console.log("Forward pass", forward)
     gs.residualIds.map((id, idx) => gc.residuals[idx].updateGraph(forward[id]))
     gc.resultHeatMap.updateGraph(forward.unembed);
     d3.select("#output-value").text(forward.result);
@@ -671,6 +687,8 @@ function redraw() {
   var sliceEnd = state.useContext ? gs.maxTokens : gs.maxVocab
   gs.activeVocab = ccfg.vocabulary.slice(0, sliceEnd)
   gs.inputIdxs = state.useContext ? state.context : gs.activeVocab.map((_, idx) => idx)
+
+
 
   let rows = state.useContext ? ccfg.d_embed : ccfg.n_vocab;
   let cols = rows;
